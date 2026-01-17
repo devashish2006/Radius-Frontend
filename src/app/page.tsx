@@ -1,65 +1,529 @@
-import Image from "next/image";
+"use client";
+
+import { 
+  MessageCircle, 
+  MapPin, 
+  Clock, 
+  Shield, 
+  Zap, 
+  Users, 
+  Heart,
+  Sparkles,
+  TrendingUp,
+  ArrowRight,
+  Github,
+  Instagram,
+  Twitter,
+  CheckCircle2,
+  BarChart3,
+  Activity
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { useEffect, useState } from "react";
+import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
+import { useRouter } from "next/navigation";
+import { PageLoader } from "@/components/page-loader";
 
 export default function Home() {
+  const [progress, setProgress] = useState(0);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setProgress(92), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleNavigateToRooms = () => {
+    setIsNavigating(true);
+    setTimeout(() => {
+      router.push("/rooms");
+    }, 1200);
+  };
+
+  const features = [
+    {
+      icon: MapPin,
+      title: "Location-Based Discovery",
+      description: "Automatically discover themed chat rooms within your area. Connect with people nearby in real-time conversations.",
+      color: "text-blue-500",
+      bgColor: "bg-blue-500/10"
+    },
+    {
+      icon: MessageCircle,
+      title: "Themed Conversations",
+      description: "7 unique room types for every mood: Confessions, City Talk, Hostel Stories, Exam Reactions, Late Night Thoughts, and more.",
+      color: "text-purple-500",
+      bgColor: "bg-purple-500/10"
+    },
+    {
+      icon: Shield,
+      title: "Anonymous & Safe",
+      description: "Express yourself freely with auto-generated anonymous names. Your privacy is our priority.",
+      color: "text-green-500",
+      bgColor: "bg-green-500/10"
+    },
+    {
+      icon: Clock,
+      title: "Time-Sensitive Rooms",
+      description: "Special rooms activate at specific times: Late Night vibes (11PM-2AM), Morning Thoughts (6AM-9AM).",
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10"
+    },
+    {
+      icon: Zap,
+      title: "Instant Real-Time",
+      description: "Experience zero-delay messaging with live user counts. Every message delivered instantly.",
+      color: "text-yellow-500",
+      bgColor: "bg-yellow-500/10"
+    },
+    {
+      icon: Users,
+      title: "Create Custom Rooms",
+      description: "Build your own spaces with unique titles. Quality-controlled with a 5-room limit per area.",
+      color: "text-pink-500",
+      bgColor: "bg-pink-500/10"
+    }
+  ];
+
+  const systemRooms = [
+    { name: "🤫 Confession Room", expiry: "24h", description: "Say what you never said out loud", icon: MessageCircle },
+    { name: "🏙️ Your City Room", expiry: "24h", description: "Talk about your city", icon: MapPin },
+    { name: "🎓 Hostel Masti", expiry: "24h", description: "College chaos & stories", icon: Sparkles },
+    { name: "📚 Exam / Result Room", expiry: "12h", description: "Exam anxiety & reactions", icon: Clock },
+    { name: "🌙 Late Night Thoughts", expiry: "6h", description: "Deep talks after 11 PM", icon: Clock },
+    { name: "☀️ Morning Thoughts", expiry: "6h", description: "Morning vibes 6-9 AM", icon: Sparkles },
+    { name: "🏏 Match Day Live", expiry: "8h", description: "Live sports reactions", icon: Activity }
+  ];
+
+  // Chart data for engagement visualization
+  const weeklyEngagement = [
+    { day: "Mon", conversations: 142 },
+    { day: "Tue", conversations: 198 },
+    { day: "Wed", conversations: 235 },
+    { day: "Thu", conversations: 189 },
+    { day: "Fri", conversations: 312 },
+    { day: "Sat", conversations: 278 },
+    { day: "Sun", conversations: 245 },
+  ];
+
+  const roomPopularity = [
+    { room: "Confession", engagement: 89 },
+    { room: "City Talk", engagement: 76 },
+    { room: "Hostel", engagement: 92 },
+    { room: "Exam Room", engagement: 68 },
+    { room: "Late Night", engagement: 85 },
+  ];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <>
+      {isNavigating && <PageLoader />}
+      <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+        {/* Hero Section */}
+        <section className="container mx-auto px-4 py-20 md:py-32">
+          <div className="text-center space-y-8 max-w-4xl mx-auto">
+            <Badge variant="outline" className="px-4 py-2 text-sm">
+              <Sparkles className="w-4 h-4 mr-2 inline" />
+              Location-Based Real-Time Chat Platform
+            </Badge>
+            
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+              Welcome to{" "}
+              <span className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+                Radius
+              </span>
+            </h1>
+            
+            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Connect with people around you through anonymous, themed chat rooms. 
+              Express yourself freely in real-time conversations.
+            </p>
+
+            <div className="flex flex-wrap gap-4 justify-center items-center pt-4">
+              <Button 
+                size="lg" 
+                className="text-lg px-8 py-6 group shadow-lg hover:shadow-xl transition-all"
+                onClick={handleNavigateToRooms}
+              >
+                Get Started
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
+                View Demo
+              </Button>
+            </div>
+
+            {/* Connection Status */}
+            <div className="pt-8 max-w-md mx-auto">
+              <Card className="border-2">
+                <CardContent className="pt-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    <span className="text-sm font-medium">Platform Online & Ready</span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    All systems operational • Real-time messaging active
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="container mx-auto px-4 py-20">
+        <div className="text-center space-y-4 mb-16">
+          <Badge variant="secondary" className="px-4 py-2">
+            <Heart className="w-4 h-4 mr-2 inline" />
+            Features
+          </Badge>
+          <h2 className="text-4xl md:text-5xl font-bold">Everything You Need</h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Seamless real-time communication designed for authentic connections
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {features.map((feature, index) => (
+            <Card key={index} className="group hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
+              <CardHeader>
+                <div className={`w-14 h-14 rounded-xl ${feature.bgColor} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <feature.icon className={`w-7 h-7 ${feature.color}`} />
+                </div>
+                <CardTitle className="text-xl mb-2">{feature.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-base leading-relaxed">
+                  {feature.description}
+                </CardDescription>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </main>
-    </div>
+      </section>
+
+      {/* Engagement Analytics Section */}
+      <section className="container mx-auto px-4 py-20 bg-muted/30 -mx-4">
+        <div className="text-center space-y-4 mb-16 px-4">
+          <Badge variant="secondary" className="px-4 py-2">
+            <TrendingUp className="w-4 h-4 mr-2 inline" />
+            Platform Engagement
+          </Badge>
+          <h2 className="text-4xl md:text-5xl font-bold">Conversations That Matter</h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            See how Radius brings people together through meaningful, real-time interactions
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto px-4">
+          {/* Weekly Conversations Chart */}
+          <Card className="border-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                Weekly Activity
+              </CardTitle>
+              <CardDescription>Conversations started across all rooms</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  conversations: {
+                    label: "Conversations",
+                    color: "hsl(var(--primary))",
+                  },
+                }}
+                className="h-[280px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={weeklyEngagement}>
+                    <defs>
+                      <linearGradient id="colorConversations" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" opacity={0.3} />
+                    <XAxis 
+                      dataKey="day" 
+                      className="text-xs" 
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <YAxis 
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="conversations" 
+                      stroke="hsl(var(--primary))" 
+                      fillOpacity={1} 
+                      fill="url(#colorConversations)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+
+          {/* Room Popularity Chart */}
+          <Card className="border-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-primary" />
+                Room Engagement
+              </CardTitle>
+              <CardDescription>Most active conversation spaces</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  engagement: {
+                    label: "Engagement Score",
+                    color: "hsl(var(--primary))",
+                  },
+                }}
+                className="h-[280px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={roomPopularity}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" opacity={0.3} />
+                    <XAxis 
+                      dataKey="room" 
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <YAxis 
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar 
+                      dataKey="engagement" 
+                      fill="hsl(var(--primary))" 
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Engagement Highlights */}
+        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-8 px-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center space-y-2">
+                <MessageCircle className="w-8 h-8 mx-auto text-primary mb-3" />
+                <div className="text-3xl font-bold">2.4K+</div>
+                <div className="text-sm text-muted-foreground">Daily Messages</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center space-y-2">
+                <Users className="w-8 h-8 mx-auto text-primary mb-3" />
+                <div className="text-3xl font-bold">850+</div>
+                <div className="text-sm text-muted-foreground">Active Conversations</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center space-y-2">
+                <Sparkles className="w-8 h-8 mx-auto text-primary mb-3" />
+                <div className="text-3xl font-bold">7</div>
+                <div className="text-sm text-muted-foreground">Themed Rooms</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* System Rooms Section */}
+      <section className="container mx-auto px-4 py-20">
+        <div className="text-center space-y-4 mb-16">
+          <Badge variant="secondary" className="px-4 py-2">
+            <Sparkles className="w-4 h-4 mr-2 inline" />
+            System Rooms
+          </Badge>
+          <h2 className="text-4xl md:text-5xl font-bold">Themed Chat Rooms</h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Seven unique spaces that automatically appear in your area, each with its own vibe
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-w-6xl mx-auto">
+          {systemRooms.map((room, index) => (
+            <Card key={index} className="hover:border-primary/50 transition-all duration-300 hover:shadow-lg group">
+              <CardHeader className="pb-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <room.icon className="w-6 h-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>{room.name}</span>
+                  <Badge variant="outline" className="text-xs">{room.expiry}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{room.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="mt-12 max-w-2xl mx-auto border-2 border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+              Smart Room Management
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Rooms automatically refresh to keep conversations relevant and engaging. 
+              Time-sensitive spaces appear only during their active hours, creating special moments 
+              for late-night thoughts or morning vibes.
+            </p>
+            <div>
+              <div className="flex justify-between mb-2 text-sm">
+                <span>Room Freshness Score</span>
+                <span className="text-muted-foreground font-medium">{progress}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* CTA Section */}
+      <section className="container mx-auto px-4 py-20">
+        <Card className="max-w-4xl mx-auto border-2 border-primary/30 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 shadow-2xl">
+          <CardHeader className="text-center space-y-6 pb-8">
+            <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
+              <MessageCircle className="w-8 h-8 text-primary" />
+            </div>
+            <Badge variant="secondary" className="mx-auto">Join The Conversation</Badge>
+            <CardTitle className="text-3xl md:text-5xl">Ready to Connect?</CardTitle>
+            <CardDescription className="text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
+              Experience authentic conversations with people nearby. 
+              Anonymous, safe, and always interesting. Start chatting in seconds.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row gap-4 justify-center pb-8">
+            <Button 
+              size="lg" 
+              className="text-lg px-10 py-6 shadow-lg hover:shadow-xl transition-all"
+              onClick={handleNavigateToRooms}
+            >
+              Launch App
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+            <Button size="lg" variant="outline" className="text-lg px-10 py-6">
+              View on GitHub
+              <Github className="w-5 h-5 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t mt-20 bg-muted/20">
+        <div className="container mx-auto px-4 py-12">
+          <div className="grid md:grid-cols-3 gap-8 mb-8">
+            <div className="space-y-4">
+              <h3 className="text-3xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+                Radius
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Location-based real-time chat platform. Connect with people around you through 
+                anonymous, themed conversations that matter.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-semibold text-lg">Quick Links</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-2">
+                  <ArrowRight className="w-3 h-3" />
+                  About Radius
+                </li>
+                <li className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-2">
+                  <ArrowRight className="w-3 h-3" />
+                  Features
+                </li>
+                <li className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-2">
+                  <ArrowRight className="w-3 h-3" />
+                  Documentation
+                </li>
+                <li className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-2">
+                  <ArrowRight className="w-3 h-3" />
+                  Privacy Policy
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-semibold text-lg">Connect with Devashish</h4>
+              <p className="text-sm text-muted-foreground">
+                Follow the creator and stay updated with latest developments
+              </p>
+              <div className="flex gap-3">
+                <a 
+                  href="https://github.com/devashish2006" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-11 h-11 rounded-lg bg-muted hover:bg-primary/20 flex items-center justify-center transition-all hover:scale-110 border border-transparent hover:border-primary/30"
+                  aria-label="GitHub"
+                >
+                  <Github className="w-5 h-5" />
+                </a>
+                <a 
+                  href="https://instagram.com/devashish2006" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-11 h-11 rounded-lg bg-muted hover:bg-primary/20 flex items-center justify-center transition-all hover:scale-110 border border-transparent hover:border-primary/30"
+                  aria-label="Instagram"
+                >
+                  <Instagram className="w-5 h-5" />
+                </a>
+                <a 
+                  href="https://x.com/devashish2006" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-11 h-11 rounded-lg bg-muted hover:bg-primary/20 flex items-center justify-center transition-all hover:scale-110 border border-transparent hover:border-primary/30"
+                  aria-label="X (Twitter)"
+                >
+                  <Twitter className="w-5 h-5" />
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-8 border-t text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              © 2026 Radius. Crafted with passion and code.
+            </p>
+            <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
+              <Heart className="w-3 h-3 text-red-500" />
+              Built by Devashish
+            </p>
+          </div>
+        </div>
+      </footer>
+      </div>
+    </>
   );
 }
+
