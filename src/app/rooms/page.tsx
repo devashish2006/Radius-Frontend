@@ -14,6 +14,8 @@ import {
   Info,
   Loader2,
   AlertCircle,
+  LogOut,
+  Shield,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +45,8 @@ import { Room as ApiRoom, DEFAULT_LOCATION } from "@/lib/api-config";
 import { initializeUser, getUserLocation, calculateDistance } from "@/lib/user-utils";
 import { toast } from "sonner";
 import { CountdownTimer } from "@/components/countdown-timer";
+import { useSession, signOut } from "next-auth/react";
+import { wsService } from "@/lib/websocket-service";
 
 interface Room {
   id: string;
@@ -82,6 +86,7 @@ const SYSTEM_ROOM_CONFIG: Record<string, { emoji: string; description: string; a
 
 export default function RoomsPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -96,6 +101,13 @@ export default function RoomsPage() {
   const [totalActiveUsers, setTotalActiveUsers] = useState(0);
   const [availableSlots, setAvailableSlots] = useState(5);
   const [usedSlots, setUsedSlots] = useState(0);
+
+  // Redirect to home if not authenticated
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/");
+    }
+  }, [status, router]);
   const [userData, setUserData] = useState<{ userId: string; username: string } | null>(null);
 
   useEffect(() => {
@@ -113,6 +125,76 @@ export default function RoomsPage() {
     
     return () => clearInterval(timer);
   }, []);
+
+  // Set up WebSocket listener for real-time room updates
+  useEffect(() => {
+    if (status === "loading" || status === "unauthenticated") {
+      return;
+    }
+
+    const token = (session as any)?.backendToken;
+    if (!token) {
+      return;
+    }
+
+    // Connect to WebSocket
+    wsService.connect(token);
+
+    // Listen for new room creation
+    wsService.onNewRoomCreated((newRoom) => {
+      console.log('🆕 New room created:', newRoom);
+      
+      // Check if the new room is within 5km of user's location
+      const distance = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        newRoom.latitude,
+        newRoom.longitude
+      );
+
+      if (distance <= 5) {
+        // Add the room to the list
+        const formattedRoom: Room = {
+          id: newRoom.id,
+          title: newRoom.title,
+          name: newRoom.title,
+          type: 'custom',
+          userCount: 0,
+          distance: distance,
+          expiry: new Date(newRoom.expiresAt).toISOString(),
+          expiresAt: newRoom.expiresAt,
+          isActive: true,
+          createdBy: newRoom.createdBy,
+          latitude: newRoom.latitude,
+          longitude: newRoom.longitude,
+        };
+
+        setCustomRooms((prev) => {
+          // Check if room already exists
+          if (prev.some(r => r.id === newRoom.id)) {
+            return prev;
+          }
+          // Add to the beginning of the list
+          return [formattedRoom, ...prev];
+        });
+
+        // Update available slots
+        setAvailableSlots((prev) => Math.max(0, prev - 1));
+        setUsedSlots((prev) => Math.min(5, prev + 1));
+
+        // Show toast notification
+        toast.info("New Room Available", {
+          description: `"${newRoom.title}" just opened nearby`,
+          duration: 3000,
+        });
+      }
+    });
+
+    return () => {
+      // Don't disconnect, just remove this specific listener
+      // The socket may be used by other components
+    };
+  }, [status, session, userLocation]);
 
   const loadUserLocationAndRooms = async () => {
     setLoading(true);
@@ -147,17 +229,24 @@ export default function RoomsPage() {
       const rooms = await roomsApi.discoverRooms(lat, lng);
       const mappedRooms: Room[] = rooms.map(room => {
         const config = SYSTEM_ROOM_CONFIG[room.name || ''] || { emoji: '🏠', description: 'Chat room' };
+        
+        // Build activeHours from API response
+        let activeHours = config.activeHours;
+        if (room.isTimeSensitive && room.activeHourStart !== undefined && room.activeHourEnd !== undefined) {
+          activeHours = { start: room.activeHourStart, end: room.activeHourEnd };
+        }
+        
         return {
           id: room.id,
           name: room.name,
           emoji: config.emoji,
-          description: config.description,
+          description: room.prompt || config.description,
           type: 'system' as const,
           userCount: room.activeUserCount,
           distance: room.distance || calculateDistance(lat, lng, room.latitude, room.longitude),
           expiry: '24h',
-          activeHours: config.activeHours,
-          isActive: room.isActive && isRoomActive(config.activeHours),
+          activeHours,
+          isActive: room.isActive,
           latitude: room.latitude,
           longitude: room.longitude,
         };
@@ -363,93 +452,116 @@ export default function RoomsPage() {
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
                   Radius
                 </h1>
-                <p className="text-sm text-muted-foreground">Discover nearby rooms</p>
+                <p className="text-sm text-muted-foreground">
+                  {session?.user?.name ? `Welcome, ${session.user.name.split(' ')[0]}!` : 'Discover nearby rooms'}
+                </p>
               </div>
             </div>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <DialogTrigger asChild>
-                        <Button 
-                          className="shadow-lg" 
-                          disabled={availableSlots <= 0}
-                          variant={availableSlots <= 0 ? "secondary" : "default"}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Create Room
-                          <Badge variant={availableSlots <= 0 ? "destructive" : "secondary"} className="ml-2">
-                            {usedSlots}/5
-                          </Badge>
-                        </Button>
-                      </DialogTrigger>
-                    </div>
-                  </TooltipTrigger>
-                  {availableSlots <= 0 && (
-                    <TooltipContent>
-                      <p>Maximum 5 custom rooms in this area</p>
-                      <p className="text-xs text-muted-foreground">All slots are full (5/5)</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create Custom Room</DialogTitle>
-                  <DialogDescription>
-                    Create your own chat room visible to people nearby.
-                    {availableSlots > 0 ? (
-                      <span className="text-primary font-semibold"> {availableSlots} of 5 slots available ({usedSlots} used).</span>
-                    ) : (
-                      <span className="text-destructive font-semibold"> All slots full (5/5).</span>
+            <div className="flex items-center gap-2">
+              {session?.user?.email === 'mshubh612@gmail.com' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/admin')}
+                  className="border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Admin Panel
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => signOut({ callbackUrl: "/" })}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <DialogTrigger asChild>
+                          <Button 
+                            className="shadow-lg" 
+                            disabled={availableSlots <= 0}
+                            variant={availableSlots <= 0 ? "secondary" : "default"}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Room
+                            <Badge variant={availableSlots <= 0 ? "destructive" : "secondary"} className="ml-2">
+                              {usedSlots}/5
+                            </Badge>
+                          </Button>
+                        </DialogTrigger>
+                      </div>
+                    </TooltipTrigger>
+                    {availableSlots <= 0 && (
+                      <TooltipContent>
+                        <p>Maximum 5 custom rooms in this area</p>
+                        <p className="text-xs text-muted-foreground">All slots are full (5/5)</p>
+                      </TooltipContent>
                     )}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="room-title">Room Title</Label>
-                    <Input
-                      id="room-title"
-                      placeholder="Enter room title..."
-                      value={newRoomTitle}
-                      onChange={(e) => setNewRoomTitle(e.target.value)}
-                      maxLength={50}
-                      disabled={loading}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {newRoomTitle.length}/50 characters
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Room Details</Label>
-                    <div className="text-sm text-muted-foreground space-y-1">
-                      <p>• Room will be visible within 5km radius</p>
-                      <p>• Expires in 48 hours or after 24h of inactivity</p>
-                      <p>• Anonymous creator name: {userData?.username}</p>
-                      <p className={availableSlots <= 0 ? "text-destructive font-semibold" : "text-primary font-semibold"}>
-                        • Slots: {usedSlots}/5 used, {availableSlots} available {availableSlots <= 0 && "(FULL)"}
+                  </Tooltip>
+                </TooltipProvider>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Custom Room</DialogTitle>
+                    <DialogDescription>
+                      Create your own chat room visible to people nearby.
+                      {availableSlots > 0 ? (
+                        <span className="text-primary font-semibold"> {availableSlots} of 5 slots available ({usedSlots} used).</span>
+                      ) : (
+                        <span className="text-destructive font-semibold"> All slots full (5/5).</span>
+                      )}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="room-title">Room Title</Label>
+                      <Input
+                        id="room-title"
+                        placeholder="Enter room title..."
+                        value={newRoomTitle}
+                        onChange={(e) => setNewRoomTitle(e.target.value)}
+                        maxLength={50}
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {newRoomTitle.length}/50 characters
                       </p>
                     </div>
+                    <div className="space-y-2">
+                      <Label>Room Details</Label>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>• Room will be visible within 5km radius</p>
+                        <p>• Expires in 48 hours or after 24h of inactivity</p>
+                        <p>• Anonymous creator name: {userData?.username}</p>
+                        <p className={availableSlots <= 0 ? "text-destructive font-semibold" : "text-primary font-semibold"}>
+                          • Slots: {usedSlots}/5 used, {availableSlots} available {availableSlots <= 0 && "(FULL)"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={loading}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateRoom} disabled={!newRoomTitle.trim() || loading || availableSlots <= 0}>
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Room'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={loading}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreateRoom} disabled={!newRoomTitle.trim() || loading || availableSlots <= 0}>
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        'Create Room'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
       </div>
@@ -547,6 +659,11 @@ export default function RoomsPage() {
                         <div className="flex-1">
                           <CardTitle className="text-lg flex items-center gap-2">
                             {room.name || room.title}
+                            {room.isActive && room.activeHours && (
+                              <Badge variant="destructive" className="text-xs animate-pulse">
+                                🔴 LIVE
+                              </Badge>
+                            )}
                             {!room.isActive && (
                               <Tooltip>
                                 <TooltipTrigger>

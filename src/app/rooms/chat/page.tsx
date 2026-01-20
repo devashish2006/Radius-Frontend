@@ -29,6 +29,8 @@ import { roomsApi } from "@/lib/api-service";
 import { initializeUser } from "@/lib/user-utils";
 import { toast } from "sonner";
 import { CountdownTimer } from "@/components/countdown-timer";
+import { useSession } from "next-auth/react";
+import { WaitingForUsers } from "@/components/waiting-for-users";
 
 interface Message {
   username: string;
@@ -41,6 +43,7 @@ export default function ChatRoomPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { data: session, status } = useSession();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeUsers, setActiveUsers] = useState(0);
@@ -51,6 +54,9 @@ export default function ChatRoomPage() {
   const [slowModeTimer, setSlowModeTimer] = useState(0);
   const slowModeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [assignedUsername, setAssignedUsername] = useState<string | null>(null);
+  const [isLastUser, setIsLastUser] = useState(false);
+  const userDataRef = useRef<{ userId: string; username: string } | null>(null);
+  const roomIdRef = useRef<string | null>(null);
 
   // Room details
   const roomId = searchParams.get("id");
@@ -65,23 +71,37 @@ export default function ChatRoomPage() {
       return;
     }
 
+    // Wait for session to be loaded
+    if (status === "loading") {
+      console.log("⏳ Waiting for session to load...");
+      return;
+    }
+
+    if (status === "unauthenticated") {
+      console.log("❌ Not authenticated, redirecting to home");
+      router.push("/");
+      return;
+    }
+
     const user = initializeUser();
     setUserData(user);
+    userDataRef.current = user;
+    roomIdRef.current = roomId;
 
     // Load room details and connect
     loadRoomAndConnect(user);
 
     return () => {
       // Cleanup on unmount
-      if (userData && roomId) {
-        wsService.leaveRoom(roomId, userData.userId);
+      if (userDataRef.current && roomIdRef.current) {
+        wsService.leaveRoom(roomIdRef.current, userDataRef.current.userId);
       }
       wsService.removeAllListeners();
       if (slowModeTimerRef.current) {
         clearInterval(slowModeTimerRef.current);
       }
     };
-  }, [roomId]);
+  }, [roomId, status, session]);
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
@@ -97,8 +117,20 @@ export default function ChatRoomPage() {
 
       // Load room details
       const details = await roomsApi.getRoomDetails(roomId);
+      
+      console.log('📋 Room details loaded:', JSON.stringify(details, null, 2));
+      
+      if (!details) {
+        setError("This room is no longer available or has expired");
+        toast.error("Room unavailable", {
+          description: "This room has expired. Redirecting to rooms page...",
+        });
+        setTimeout(() => router.push("/rooms"), 2000);
+        return;
+      }
+      
       setRoomDetails(details);
-      setActiveUsers(details.activeUserCount);
+      // Don't set activeUsers from API - wait for WebSocket user-count event for real-time data
 
       // Load existing messages from database
       try {
@@ -115,15 +147,52 @@ export default function ChatRoomPage() {
         // Continue even if messages fail to load
       }
 
-      // Connect to WebSocket
-      const socket = wsService.connect();
+      // Connect to WebSocket with JWT token
+      const token = (session as any)?.backendToken;
+      
+      if (!token) {
+        setError("Authentication token not found");
+        toast.error("Authentication Error", {
+          description: "Please sign in again",
+        });
+        setTimeout(() => router.push("/"), 2000);
+        return;
+      }
 
-      socket.on("connect", () => {
+      console.log('🔐 Connecting with token...');
+      const socket = wsService.connect(token);
+
+      // Set up ALL event listeners BEFORE joining the room
+      // This prevents race conditions where events fire before listeners are ready
+      
+      // Listen for connection events
+      wsService.onConnect(() => {
+        console.log('✅ Connected, joining room:', roomId);
         setConnected(true);
-        // Join room (backend only needs roomId)
+        setError(null);
         wsService.joinRoom({ roomId });
       });
 
+      wsService.onDisconnect((reason) => {
+        console.log('❌ Disconnected:', reason);
+        setConnected(false);
+        if (reason !== 'io client disconnect') {
+          toast.warning("Connection Lost", {
+            description: "Attempting to reconnect...",
+            duration: 3000,
+          });
+        }
+      });
+
+      wsService.onReconnect(() => {
+        console.log('🔄 Reconnected successfully');
+        setConnected(true);
+        toast.success("Reconnected", {
+          description: "You're back online!",
+          duration: 2000,
+        });
+      });
+      
       // Listen for your assigned identity
       wsService.onYourIdentity((data) => {
         setAssignedUsername(data.username);
@@ -136,6 +205,7 @@ export default function ChatRoomPage() {
 
       // Listen for messages
       wsService.onMessage((data) => {
+        console.log('📨 Received message:', data);
         setMessages((prev) => [
           ...prev,
           {
@@ -148,13 +218,31 @@ export default function ChatRoomPage() {
 
       // Listen for user count updates
       wsService.onUserCount((count) => {
+        console.log('👥 User count updated:', count);
         setActiveUsers(count);
+        
+        // Check if user is now the last one in a user room
+        if (count === 1 && details?.isUserRoom) {
+          setIsLastUser(true);
+        } else if (count > 1) {
+          setIsLastUser(false);
+        }
       });
 
       // Listen for user joined events
       wsService.onUserJoined((data) => {
+        console.log('👋 User joined:', data.username);
         // Show toast notification for other users joining
         toast.info(`${data.username} joined the room`, {
+          duration: 2000,
+        });
+      });
+
+      // Listen for user left events
+      wsService.onUserLeft((data) => {
+        console.log('👋 User left:', data.username);
+        // Show toast notification for users leaving
+        toast.error(`${data.username} left the room`, {
           duration: 2000,
         });
       });
@@ -182,12 +270,80 @@ export default function ChatRoomPage() {
         }, 1000);
       });
 
+      // Listen for room closing notification
+      wsService.onRoomClosing((data) => {
+        console.log('🚪 Room closing:', data.message);
+        toast.error("Room Closed", {
+          description: data.message,
+          duration: 2000,
+        });
+        
+        // Disconnect and redirect immediately
+        wsService.removeAllListeners();
+        wsService.disconnect();
+        router.push("/rooms");
+      });
+
+      // Listen for room expired notification (auto-deleted after 2 hours)
+      wsService.onRoomExpired((data) => {
+        console.log('⏰ Room expired:', data.message);
+        toast.error("Room Expired", {
+          description: data.message,
+          duration: 3000,
+        });
+        
+        // Disconnect and redirect immediately
+        wsService.removeAllListeners();
+        wsService.disconnect();
+        router.push("/rooms");
+      });
+
+      // Listen for last user warning
+      wsService.onLastUserWarning((data) => {
+        console.log('⚠️ Last user warning:', data.message);
+        setIsLastUser(true);
+        toast.warning("Last User", {
+          description: data.message,
+          duration: 5000,
+        });
+      });
+
+      // Listen for message blocked notifications (content moderation)
+      wsService.onMessageBlocked((data) => {
+        console.log('🚫 Message blocked:', data.message);
+        toast.error("Message Blocked", {
+          description: data.message,
+          duration: 3000,
+        });
+      });
+
+      // If already connected, join immediately
+      if (socket.connected) {
+        console.log('✅ Already connected, joining room immediately:', roomId);
+        setConnected(true);
+        wsService.joinRoom({ roomId });
+      }
+
       setLoading(false);
     } catch (err) {
       console.error("Error loading room:", err);
-      setError(err instanceof Error ? err.message : "Failed to load room");
+      const errorMessage = err instanceof Error ? err.message : "Failed to load room";
+      
+      // Check if it's a room not found error
+      if (errorMessage.includes("not found") || errorMessage.includes("expired")) {
+        setError("This room is no longer available or has expired");
+        toast.error("Room unavailable", {
+          description: "This room has expired. Redirecting to rooms page...",
+        });
+        setTimeout(() => router.push("/rooms"), 2000);
+      } else {
+        setError(errorMessage);
+        toast.error("Failed to connect to room", {
+          description: errorMessage,
+        });
+      }
+      
       setLoading(false);
-      toast.error("Failed to connect to room");
     }
   };
 
@@ -232,6 +388,44 @@ export default function ChatRoomPage() {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleWaitingTimeout = async () => {
+    console.log("⏰ Waiting timeout reached, closing room...");
+    
+    toast.error("Room Closed", {
+      description: "No one joined in time. Redirecting to rooms page...",
+      duration: 3000,
+    });
+
+    try {
+      // Leave the room gracefully
+      if (userDataRef.current && roomIdRef.current) {
+        wsService.leaveRoom(roomIdRef.current, userDataRef.current.userId);
+      }
+      
+      // Disconnect WebSocket
+      wsService.removeAllListeners();
+      wsService.disconnect();
+
+      // Delete the room if it's a user room
+      if (roomId && roomDetails?.isUserRoom) {
+        try {
+          await roomsApi.deleteRoom(roomId);
+          console.log("✅ Room deleted successfully");
+        } catch (err) {
+          console.error("Error deleting room:", err);
+          // Continue with redirect even if deletion fails
+        }
+      }
+    } catch (err) {
+      console.error("Error during timeout cleanup:", err);
+    }
+
+    // Redirect after a short delay
+    setTimeout(() => {
+      router.push("/rooms");
+    }, 1000);
   };
 
   const formatTimestamp = (timestamp: Date | string) => {
@@ -297,6 +491,15 @@ export default function ChatRoomPage() {
 
   return (
     <div className="h-screen bg-gradient-to-b from-background via-background to-muted/20 flex flex-col">
+      {/* Waiting Screen Overlay - Only show when alone in the room */}
+      {activeUsers === 1 && connected && (
+        <WaitingForUsers 
+          roomName={roomName || roomDetails?.name} 
+          roomType={roomType}
+          onTimeout={handleWaitingTimeout}
+        />
+      )}
+
       {/* Header */}
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-3">
@@ -316,7 +519,7 @@ export default function ChatRoomPage() {
                       {roomType}
                     </Badge>
                   )}
-                  {roomDetails?.expiresAt && (
+                  {roomDetails?.expiresAt && roomDetails?.isUserRoom && (
                     <CountdownTimer 
                       expiresAt={roomDetails.expiresAt} 
                       showIcon={true}
@@ -328,6 +531,13 @@ export default function ChatRoomPage() {
             </div>
 
             <div className="flex items-center gap-4">
+              {isLastUser && roomDetails?.isUserRoom && (
+                <Badge variant="destructive" className="gap-2 animate-pulse">
+                  <AlertCircle className="w-3 h-3" />
+                  Last User
+                </Badge>
+              )}
+              
               {slowModeActive && (
                 <TooltipProvider>
                   <Tooltip>
@@ -344,17 +554,46 @@ export default function ChatRoomPage() {
                 </TooltipProvider>
               )}
 
-              <Card className="px-3 py-1.5">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">{activeUsers}</span>
-                  <span className="text-xs text-muted-foreground">online</span>
-                </div>
-              </Card>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Card className="px-3 py-1.5 transition-all hover:shadow-md">
+                      <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <Users className="w-4 h-4 text-primary" />
+                          <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-primary">{activeUsers}</span>
+                        <span className="text-xs text-muted-foreground">online</span>
+                      </div>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{activeUsers} {activeUsers === 1 ? 'user' : 'users'} currently in this room</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Last User Warning Banner */}
+      {isLastUser && roomDetails?.isUserRoom && (
+        <div className="border-b bg-destructive/10 backdrop-blur">
+          <div className="container mx-auto px-4 py-2">
+            <div className="flex items-center justify-center gap-2 text-sm text-destructive">
+              <AlertCircle className="w-4 h-4" />
+              <span className="font-medium">
+                You are the last person in this room. The room will be permanently deleted when you leave.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6">

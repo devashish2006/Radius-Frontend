@@ -13,6 +13,7 @@ export const API_CONFIG = {
     GET_USER_ROOMS: '/rooms/user',
     USER_ROOM_SLOTS: '/rooms/user/slots',
     CLEANUP_ROOMS: '/rooms/cleanup',
+    DELETE_USER_ROOM: (roomId: string) => `/rooms/user/${roomId}`,
   },
 };
 
@@ -39,6 +40,11 @@ export interface Room {
   createdBy?: string;
   expiresAt?: string;
   lastActivityAt?: string;
+  isTimeSensitive?: boolean;
+  activeHourStart?: number;
+  activeHourEnd?: number;
+  prompt?: string;
+  roomType?: string;
 }
 
 export interface NearbyCountResponse {

@@ -15,12 +15,29 @@ interface UserJoinedData {
   username: string;
 }
 
+interface UserLeftData {
+  username: string;
+}
+
 interface YourIdentityData {
   username: string;
 }
 
 interface SlowModeData {
   secondsLeft: number;
+}
+
+interface RoomClosingData {
+  message: string;
+}
+
+interface LastUserWarningData {
+  message: string;
+}
+
+interface MessageBlockedData {
+  message: string;
+  reason?: string;
 }
 
 interface JoinRoomData {
@@ -35,32 +52,79 @@ interface SendMessageData {
 class WebSocketService {
   private socket: Socket | null = null;
   private currentRoomId: string | null = null;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 10;
 
   /**
-   * Connect to WebSocket server
+   * Connect to WebSocket server with JWT token
    */
-  connect(): Socket {
+  connect(token?: string): Socket {
+    // If already connected, return existing socket
     if (this.socket?.connected) {
+      console.log('✅ Socket already connected, reusing connection');
       return this.socket;
     }
 
+    // If socket exists but not connected, try to reconnect
+    if (this.socket && !this.socket.connected) {
+      console.log('🔄 Reconnecting existing socket...');
+      this.socket.connect();
+      return this.socket;
+    }
+
+    console.log('🔌 Creating new WebSocket connection...');
     this.socket = io(API_CONFIG.WS_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+      auth: {
+        token: token || '',
+      },
     });
 
     this.socket.on('connect', () => {
       console.log('✅ WebSocket connected:', this.socket?.id);
+      this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('❌ WebSocket disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        // Server disconnected, try to reconnect manually
+        console.log('🔄 Server disconnected, attempting manual reconnect...');
+        this.socket?.connect();
+      }
+    });
+
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log(`✅ WebSocket reconnected after ${attemptNumber} attempts`);
+      this.reconnectAttempts = 0;
+      
+      // Rejoin the room if we were in one
+      if (this.currentRoomId) {
+        console.log('🔄 Rejoining room after reconnect:', this.currentRoomId);
+        this.socket?.emit('join-room', { roomId: this.currentRoomId });
+      }
+    });
+
+    this.socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`🔄 Reconnection attempt ${attemptNumber}/${this.maxReconnectAttempts}`);
+      this.reconnectAttempts = attemptNumber;
+    });
+
+    this.socket.on('reconnect_error', (error) => {
+      console.error('❌ Reconnection error:', error);
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.error('❌ Reconnection failed after all attempts');
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
+      console.error('❌ WebSocket connection error:', error);
     });
 
     return this.socket;
@@ -129,6 +193,14 @@ class WebSocketService {
   }
 
   /**
+   * Listen for user left notifications
+   */
+  onUserLeft(callback: (data: UserLeftData) => void) {
+    if (!this.socket) return;
+    this.socket.on('user-left', callback);
+  }
+
+  /**
    * Listen for your identity assignment
    */
   onYourIdentity(callback: (data: YourIdentityData) => void) {
@@ -145,6 +217,70 @@ class WebSocketService {
   }
 
   /**
+   * Listen for room closing notifications
+   */
+  onRoomClosing(callback: (data: RoomClosingData) => void) {
+    if (!this.socket) return;
+    this.socket.on('room-closing', callback);
+  }
+
+  /**
+   * Listen for room expired notifications (auto-deleted after 2 hours)
+   */
+  onRoomExpired(callback: (data: { roomId: string; roomName: string; message: string }) => void) {
+    if (!this.socket) return;
+    this.socket.on('room-expired', callback);
+  }
+
+  /**
+   * Listen for last user warning
+   */
+  onLastUserWarning(callback: (data: LastUserWarningData) => void) {
+    if (!this.socket) return;
+    this.socket.on('last-user-warning', callback);
+  }
+
+  /**
+   * Listen for message blocked notifications (content moderation)
+   */
+  onMessageBlocked(callback: (data: MessageBlockedData) => void) {
+    if (!this.socket) return;
+    this.socket.on('message-blocked', callback);
+  }
+
+  /**
+   * Listen for connection state changes
+   */
+  onConnect(callback: () => void) {
+    if (!this.socket) return;
+    this.socket.on('connect', callback);
+  }
+
+  /**
+   * Listen for disconnection
+   */
+  onDisconnect(callback: (reason: string) => void) {
+    if (!this.socket) return;
+    this.socket.on('disconnect', callback);
+  }
+
+  /**
+   * Listen for reconnection
+   */
+  onReconnect(callback: () => void) {
+    if (!this.socket) return;
+    this.socket.on('reconnect', callback);
+  }
+
+  /**
+   * Listen for new room creation
+   */
+  onNewRoomCreated(callback: (roomData: any) => void) {
+    if (!this.socket) return;
+    this.socket.on('new-room-created', callback);
+  }
+
+  /**
    * Remove all listeners
    */
   removeAllListeners() {
@@ -152,8 +288,13 @@ class WebSocketService {
     this.socket.off('new-message');
     this.socket.off('user-count');
     this.socket.off('user-joined');
+    this.socket.off('user-left');
     this.socket.off('your-identity');
     this.socket.off('slow-mode');
+    this.socket.off('room-closing');
+    this.socket.off('last-user-warning');
+    this.socket.off('message-blocked');
+    // Don't remove connection listeners as they're needed for reconnection
   }
 
   /**

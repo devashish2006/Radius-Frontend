@@ -168,6 +168,21 @@ class RoomsApiService {
     }
     return response.json();
   }
+
+  /**
+   * Delete a specific user room
+   */
+  async deleteRoom(roomId: string): Promise<{ message: string; roomId: string; roomName: string }> {
+    const response = await fetch(`${this.baseUrl}${API_CONFIG.ENDPOINTS.DELETE_USER_ROOM(roomId)}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const error: ApiError = await response.json();
+      throw new Error(error.message || 'Failed to delete room');
+    }
+    return response.json();
+  }
 }
 
 // Export singleton instance

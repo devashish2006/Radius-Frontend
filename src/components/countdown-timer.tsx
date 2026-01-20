@@ -20,6 +20,11 @@ export function CountdownTimer({
   const [timeLeft, setTimeLeft] = useState("");
   const [isExpiringSoon, setIsExpiringSoon] = useState(false);
 
+  // Log once when component mounts or expiresAt changes
+  useEffect(() => {
+    console.log('⏰ CountdownTimer mounted with expiresAt:', expiresAt, 'type:', typeof expiresAt);
+  }, [expiresAt]);
+
   useEffect(() => {
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
@@ -27,6 +32,7 @@ export function CountdownTimer({
       const difference = expiry - now;
 
       if (difference <= 0) {
+        console.log('⏰ Timer expired! now:', new Date(now), 'expiry:', new Date(expiry));
         setTimeLeft("Expired");
         return;
       }
@@ -35,19 +41,15 @@ export function CountdownTimer({
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
-      // Mark as expiring soon if less than 1 hour
-      setIsExpiringSoon(hours < 1);
+      // Mark as expiring soon if less than 30 minutes
+      setIsExpiringSoon(hours === 0 && minutes < 30);
 
-      if (hours > 24) {
-        const days = Math.floor(hours / 24);
-        setTimeLeft(`${days}d ${hours % 24}h`);
-      } else if (hours > 0) {
-        setTimeLeft(`${hours}h ${minutes}m`);
-      } else if (minutes > 0) {
-        setTimeLeft(`${minutes}m ${seconds}s`);
-      } else {
-        setTimeLeft(`${seconds}s`);
-      }
+      // Format as hrs:min:sec
+      const formattedHours = String(hours).padStart(2, '0');
+      const formattedMinutes = String(minutes).padStart(2, '0');
+      const formattedSeconds = String(seconds).padStart(2, '0');
+      
+      setTimeLeft(`${formattedHours}:${formattedMinutes}:${formattedSeconds}`);
     };
 
     calculateTimeLeft();
