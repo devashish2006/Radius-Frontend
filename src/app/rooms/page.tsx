@@ -16,11 +16,17 @@ import {
   AlertCircle,
   LogOut,
   Shield,
+  Bell,
+  X,
+  Moon,
+  Sun,
+  Briefcase,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -47,12 +53,13 @@ import { toast } from "sonner";
 import { CountdownTimer } from "@/components/countdown-timer";
 import { useSession, signOut } from "next-auth/react";
 import { wsService } from "@/lib/websocket-service";
+import { BanCheckWrapper } from "@/components/ban-check-wrapper";
 
 interface Room {
   id: string;
   name?: string;
   title?: string;
-  emoji?: string;
+  iconComponent?: any;
   description?: string;
   type: "system" | "custom";
   userCount: number;
@@ -66,22 +73,54 @@ interface Room {
   longitude: number;
 }
 
-// Map system room names to emojis and descriptions
-const SYSTEM_ROOM_CONFIG: Record<string, { emoji: string; description: string; activeHours?: { start: number; end: number } }> = {
-  "University": { emoji: "🎓", description: "Connect with university students" },
-  "College": { emoji: "📚", description: "College community discussions" },
-  "School": { emoji: "🏫", description: "School students hangout" },
-  "Hospital": { emoji: "🏥", description: "Healthcare community" },
-  "Workplace": { emoji: "💼", description: "Professional networking" },
-  "Gym": { emoji: "💪", description: "Fitness enthusiasts" },
-  "Mall": { emoji: "🛍️", description: "Shopping and lifestyle" },
-  "Confession": { emoji: "🤫", description: "Say what you never said out loud" },
-  "City": { emoji: "🏙️", description: "Talk about your city" },
-  "Hostel": { emoji: "🎓", description: "College chaos & stories" },
-  "Exam": { emoji: "📚", description: "Exam anxiety & reactions" },
-  "Late Night": { emoji: "🌙", description: "Deep talks after 11 PM", activeHours: { start: 23, end: 2 } },
-  "Morning": { emoji: "☀️", description: "Morning vibes 6-9 AM", activeHours: { start: 6, end: 9 } },
-  "Sports": { emoji: "🏏", description: "Live sports reactions" },
+// Map system room names to icons and descriptions
+const SYSTEM_ROOM_CONFIG: Record<string, { icon: any; description: string; activeHours?: { start: number; end: number }; gradient: string }> = {
+  "Confession Room": { 
+    icon: MessageCircle, 
+    description: "Say what you never said out loud", 
+    activeHours: { start: 16, end: 21 },
+    gradient: "from-purple-500/10 via-purple-500/5 to-transparent"
+  },
+  "City Talk": { 
+    icon: MapPin, 
+    description: "Talk about your city", 
+    activeHours: { start: 9, end: 16 },
+    gradient: "from-blue-500/10 via-blue-500/5 to-transparent"
+  },
+  "Campus Life": { 
+    icon: Users, 
+    description: "College chaos & stories",
+    gradient: "from-green-500/10 via-green-500/5 to-transparent"
+  },
+  "Exam Hub": { 
+    icon: Clock, 
+    description: "Exam anxiety & reactions",
+    gradient: "from-orange-500/10 via-orange-500/5 to-transparent"
+  },
+  "After Hours": { 
+    icon: Moon, 
+    description: "Deep talks 9 PM-3 AM", 
+    activeHours: { start: 21, end: 3 },
+    gradient: "from-indigo-500/10 via-indigo-500/5 to-transparent"
+  },
+  "Morning Pulse": { 
+    icon: Sun, 
+    description: "Morning vibes 5-9 AM", 
+    activeHours: { start: 5, end: 9 },
+    gradient: "from-yellow-500/10 via-yellow-500/5 to-transparent"
+  },
+  "Live Sports Arena": { 
+    icon: Activity, 
+    description: "Live sports reactions 8 PM-12 AM", 
+    activeHours: { start: 20, end: 24 },
+    gradient: "from-red-500/10 via-red-500/5 to-transparent"
+  },
+  "Work & Career": { 
+    icon: Briefcase, 
+    description: "Office life & career talks 12-5 PM", 
+    activeHours: { start: 12, end: 17 },
+    gradient: "from-cyan-500/10 via-cyan-500/5 to-transparent"
+  },
 };
 
 export default function RoomsPage() {
@@ -91,6 +130,7 @@ export default function RoomsPage() {
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [newRoomNotification, setNewRoomNotification] = useState<Room | null>(null);
   
   // API state
   const [systemRooms, setSystemRooms] = useState<Room[]>([]);
@@ -99,7 +139,7 @@ export default function RoomsPage() {
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>(DEFAULT_LOCATION);
   const [totalActiveUsers, setTotalActiveUsers] = useState(0);
-  const [availableSlots, setAvailableSlots] = useState(5);
+  const [availableSlots, setAvailableSlots] = useState(2);
   const [usedSlots, setUsedSlots] = useState(0);
 
   // Redirect to home if not authenticated
@@ -180,13 +220,15 @@ export default function RoomsPage() {
 
         // Update available slots
         setAvailableSlots((prev) => Math.max(0, prev - 1));
-        setUsedSlots((prev) => Math.min(5, prev + 1));
+        setUsedSlots((prev) => Math.min(2, prev + 1));
 
-        // Show toast notification
-        toast.info("New Room Available", {
-          description: `"${newRoom.title}" just opened nearby`,
-          duration: 3000,
-        });
+        // Show custom notification popup
+        setNewRoomNotification(formattedRoom);
+        
+        // Auto-hide after 8 seconds
+        setTimeout(() => {
+          setNewRoomNotification(null);
+        }, 8000);
       }
     });
 
@@ -206,9 +248,21 @@ export default function RoomsPage() {
       const coords = location || DEFAULT_LOCATION;
       setUserLocation(coords);
       
+      // Get city name via reverse geocoding
+      let cityName: string | undefined;
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}`
+        );
+        const data = await response.json();
+        cityName = data.address?.city || data.address?.town || data.address?.village || data.address?.state;
+      } catch (error) {
+        console.error('Failed to get city name:', error);
+      }
+      
       // Load all data in parallel
       await Promise.all([
-        loadSystemRooms(coords.lat, coords.lng),
+        loadSystemRooms(coords.lat, coords.lng, cityName),
         loadCustomRooms(coords.lat, coords.lng),
         loadActiveCount(coords.lat, coords.lng),
         loadAvailableSlots(coords.lat, coords.lng),
@@ -224,11 +278,22 @@ export default function RoomsPage() {
     }
   };
 
-  const loadSystemRooms = async (lat: number, lng: number) => {
+  const loadSystemRooms = async (lat: number, lng: number, cityName?: string) => {
     try {
-      const rooms = await roomsApi.discoverRooms(lat, lng);
+      const rooms = await roomsApi.discoverRooms(lat, lng, cityName);
       const mappedRooms: Room[] = rooms.map(room => {
-        const config = SYSTEM_ROOM_CONFIG[room.name || ''] || { emoji: '🏠', description: 'Chat room' };
+        // Match room name with config, handling partial matches for city rooms
+        let config = SYSTEM_ROOM_CONFIG[room.name || ''];
+        
+        // If not found, try to match City Talk rooms with dynamic city names
+        if (!config && room.name?.startsWith('City Talk:')) {
+          config = SYSTEM_ROOM_CONFIG['City Talk'];
+        }
+        
+        // Fallback to default config
+        if (!config) {
+          config = { icon: MessageCircle, description: 'Chat room', gradient: 'from-gray-500/10 via-gray-500/5 to-transparent' };
+        }
         
         // Build activeHours from API response
         let activeHours = config.activeHours;
@@ -236,15 +301,33 @@ export default function RoomsPage() {
           activeHours = { start: room.activeHourStart, end: room.activeHourEnd };
         }
         
+        // Calculate distance properly
+        let distance = 0;
+        if (room.distance !== undefined && !isNaN(room.distance)) {
+          distance = room.distance;
+        } else if (room.latitude && room.longitude) {
+          const calcDistance = calculateDistance(lat, lng, room.latitude, room.longitude);
+          distance = isNaN(calcDistance) ? 0 : calcDistance;
+        }
+        
+        // Calculate expiry based on activeHours (only show for time-sensitive rooms)
+        let expiry = '24h';
+        if (activeHours && room.isTimeSensitive) {
+          const hours = activeHours.end >= activeHours.start 
+            ? activeHours.end - activeHours.start
+            : (24 - activeHours.start) + activeHours.end;
+          expiry = `${hours}h`;
+        }
+        
         return {
           id: room.id,
           name: room.name,
-          emoji: config.emoji,
+          iconComponent: config.icon,
           description: room.prompt || config.description,
           type: 'system' as const,
           userCount: room.activeUserCount,
-          distance: room.distance || calculateDistance(lat, lng, room.latitude, room.longitude),
-          expiry: '24h',
+          distance,
+          expiry,
           activeHours,
           isActive: room.isActive,
           latitude: room.latitude,
@@ -276,15 +359,15 @@ export default function RoomsPage() {
           id: room.id,
           title: room.title || room.name,
           name: room.title || room.name,
-          emoji: '💬',
+          iconComponent: MessageCircle,
           description: room.title || room.name || 'Custom room',
           type: 'custom' as const,
-          userCount: room.activeUserCount || room.active_user_count || 0,
+          userCount: room.activeUserCount || 0,
           distance: room.distance || 0,
           expiry: '48h',
-          expiresAt: room.expiresAt || room.expires_at,
-          isActive: (room.isActive !== false && room.is_active !== false),
-          createdBy: room.createdBy || room.created_by,
+          expiresAt: room.expiresAt,
+          isActive: room.isActive !== false,
+          createdBy: room.createdBy,
           latitude: room.latitude || 0,
           longitude: room.longitude || 0,
         };
@@ -345,7 +428,7 @@ export default function RoomsPage() {
 
     if (availableSlots <= 0) {
       toast.error('Maximum room limit reached', {
-        description: 'Only 5 custom rooms allowed per area',
+        description: 'Only 2 custom rooms allowed per area',
       });
       return;
     }
@@ -437,45 +520,118 @@ export default function RoomsPage() {
   }
 
   return (
+    <BanCheckWrapper>
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+      {/* New Room Notification Popup */}
+      {newRoomNotification && (
+        <div className="fixed top-20 right-4 left-4 md:left-auto z-[60] animate-in slide-in-from-right-5 duration-300">
+          <Alert className="max-w-[380px] md:w-[380px] mx-auto md:mx-0 border-2 border-primary/50 bg-gradient-to-br from-primary/10 via-background to-primary/5 shadow-2xl backdrop-blur-sm">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-primary/20 p-2 animate-pulse">
+                <Bell className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <AlertTitle className="text-lg font-bold flex items-center gap-2">
+                  New Room Nearby!
+                  <Badge variant="secondary" className="text-xs">
+                    {newRoomNotification.distance.toFixed(1)}km away
+                  </Badge>
+                </AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    "{newRoomNotification.title}"
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Created by <span className="font-medium text-primary">{newRoomNotification.createdBy}</span>
+                  </p>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          id: newRoomNotification.id,
+                          name: newRoomNotification.title || 'Custom Room',
+                          type: newRoomNotification.type,
+                        });
+                        router.push(`/rooms/chat?${params.toString()}`);
+                      }}
+                    >
+                      <MessageCircle className="h-3 w-3 mr-1" />
+                      Join Now
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setNewRoomNotification(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
               <Link href="/">
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </Link>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text truncate">
                   Radius
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {session?.user?.name ? `Welcome, ${session.user.name.split(' ')[0]}!` : 'Discover nearby rooms'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               {session?.user?.email === 'mshubh612@gmail.com' && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => router.push('/admin')}
-                  className="border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950"
+                  className="hidden sm:flex border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950"
                 >
                   <Shield className="h-4 w-4 mr-2" />
                   Admin Panel
+                </Button>
+              )}
+              {session?.user?.email === 'mshubh612@gmail.com' && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => router.push('/admin')}
+                  className="sm:hidden h-8 w-8 border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950"
+                >
+                  <Shield className="h-4 w-4" />
                 </Button>
               )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => signOut({ callbackUrl: "/" })}
+                className="hidden sm:flex h-9"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="sm:hidden h-8 w-8"
+              >
+                <LogOut className="h-4 w-4" />
               </Button>
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <TooltipProvider>
@@ -484,14 +640,14 @@ export default function RoomsPage() {
                       <div>
                         <DialogTrigger asChild>
                           <Button 
-                            className="shadow-lg" 
+                            className="shadow-lg h-8 sm:h-9 text-xs sm:text-sm" 
                             disabled={availableSlots <= 0}
                             variant={availableSlots <= 0 ? "secondary" : "default"}
                           >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Room
-                            <Badge variant={availableSlots <= 0 ? "destructive" : "secondary"} className="ml-2">
-                              {usedSlots}/5
+                            <Plus className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                            <span className="hidden xs:inline">Create</span>
+                            <Badge variant={availableSlots <= 0 ? "destructive" : "secondary"} className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-2">
+                              {usedSlots}/2
                             </Badge>
                           </Button>
                         </DialogTrigger>
@@ -499,8 +655,8 @@ export default function RoomsPage() {
                     </TooltipTrigger>
                     {availableSlots <= 0 && (
                       <TooltipContent>
-                        <p>Maximum 5 custom rooms in this area</p>
-                        <p className="text-xs text-muted-foreground">All slots are full (5/5)</p>
+                        <p>Maximum 2 custom rooms in this area</p>
+                        <p className="text-xs text-muted-foreground">All slots are full (2/2)</p>
                       </TooltipContent>
                     )}
                   </Tooltip>
@@ -511,7 +667,7 @@ export default function RoomsPage() {
                     <DialogDescription>
                       Create your own chat room visible to people nearby.
                       {availableSlots > 0 ? (
-                        <span className="text-primary font-semibold"> {availableSlots} of 5 slots available ({usedSlots} used).</span>
+                        <span className="text-primary font-semibold"> {availableSlots} of 2 slots available ({usedSlots} used).</span>
                       ) : (
                         <span className="text-destructive font-semibold"> All slots full (5/5).</span>
                       )}
@@ -539,7 +695,7 @@ export default function RoomsPage() {
                         <p>• Expires in 48 hours or after 24h of inactivity</p>
                         <p>• Anonymous creator name: {userData?.username}</p>
                         <p className={availableSlots <= 0 ? "text-destructive font-semibold" : "text-primary font-semibold"}>
-                          • Slots: {usedSlots}/5 used, {availableSlots} available {availableSlots <= 0 && "(FULL)"}
+                          • Slots: {usedSlots}/2 used, {availableSlots} available {availableSlots <= 0 && "(FULL)"}
                         </p>
                       </div>
                     </div>
@@ -567,142 +723,167 @@ export default function RoomsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         {/* Stats Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6 md:mb-8">
           <Card>
-            <CardContent className="pt-6">
-              <div className="text-center space-y-2">
-                <Sparkles className="w-6 h-6 mx-auto text-primary" />
-                <div className="text-2xl font-bold">{systemRooms.length}</div>
-                <div className="text-xs text-muted-foreground">System Rooms</div>
+            <CardContent className="pt-3 sm:pt-4 md:pt-6 pb-3 sm:pb-4 md:pb-6">
+              <div className="text-center space-y-1 sm:space-y-2">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 mx-auto text-primary" />
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{systemRooms.length}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">System Rooms</div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="text-center space-y-2">
-                <Users className="w-6 h-6 mx-auto text-primary" />
-                <div className="text-2xl font-bold">{customRooms.length}</div>
-                <div className="text-xs text-muted-foreground">Custom Rooms</div>
+            <CardContent className="pt-3 sm:pt-4 md:pt-6 pb-3 sm:pb-4 md:pb-6">
+              <div className="text-center space-y-1 sm:space-y-2">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 mx-auto text-primary" />
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{customRooms.length}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">Custom Rooms</div>
               </div>
             </CardContent>
           </Card>
           <Card className={availableSlots <= 0 ? "border-destructive/50" : ""}>
-            <CardContent className="pt-6">
-              <div className="text-center space-y-2">
+            <CardContent className="pt-3 sm:pt-4 md:pt-6 pb-3 sm:pb-4 md:pb-6">
+              <div className="text-center space-y-1 sm:space-y-2">
                 <div className="relative">
-                  <Plus className={`w-6 h-6 mx-auto ${availableSlots <= 0 ? 'text-destructive' : 'text-primary'}`} />
+                  <Plus className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 mx-auto ${availableSlots <= 0 ? 'text-destructive' : 'text-primary'}`} />
                   {availableSlots <= 0 && (
-                    <Lock className="w-3 h-3 absolute -top-1 -right-2 text-destructive" />
+                    <Lock className="w-2 h-2 sm:w-3 sm:h-3 absolute -top-1 -right-2 text-destructive" />
                   )}
                 </div>
-                <div className={`text-2xl font-bold ${availableSlots <= 0 ? 'text-destructive' : ''}`}>
-                  {usedSlots}/5
+                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${availableSlots <= 0 ? 'text-destructive' : ''}`}>
+                  {usedSlots}/2
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-[10px] sm:text-xs text-muted-foreground">
                   {availableSlots <= 0 ? 'Slots Full' : 'Slots Used'}
                 </div>
                 {availableSlots > 0 && (
-                  <Progress value={(usedSlots / 5) * 100} className="h-1" />
+                  <Progress value={(usedSlots / 2) * 100} className="h-1" />
                 )}
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="text-center space-y-2">
-                <Activity className="w-6 h-6 mx-auto text-primary" />
-                <div className="text-2xl font-bold">{totalActiveUsers}</div>
-                <div className="text-xs text-muted-foreground">Active Users</div>
+            <CardContent className="pt-3 sm:pt-4 md:pt-6 pb-3 sm:pb-4 md:pb-6">
+              <div className="text-center space-y-1 sm:space-y-2">
+                <Activity className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 mx-auto text-primary" />
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{totalActiveUsers}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">Active Users</div>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center space-y-2">
-                <MapPin className="w-6 h-6 mx-auto text-primary" />
-                <div className="text-2xl font-bold">5km</div>
-                <div className="text-xs text-muted-foreground">Search Radius</div>
+          <Card className="col-span-2 sm:col-span-1">
+            <CardContent className="pt-3 sm:pt-4 md:pt-6 pb-3 sm:pb-4 md:pb-6">
+              <div className="text-center space-y-1 sm:space-y-2">
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 mx-auto text-primary" />
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">5km</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">Search Radius</div>
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* System Rooms Section */}
-        <div className="mb-12">
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-5 h-5 text-primary" />
-              <h2 className="text-3xl font-bold">System Rooms</h2>
+        <div className="mb-6 sm:mb-8 md:mb-12">
+          <div className="mb-4 sm:mb-5 md:mb-6">
+            <div className="flex items-center gap-2 mb-1 sm:mb-2">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">System Rooms</h2>
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Themed rooms automatically available in your area
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {systemRooms.map((room) => (
-              <TooltipProvider key={room.id}>
-                <Card
-                  className={`group transition-all duration-300 ${
-                    room.isActive
-                      ? "hover:border-primary/50 hover:shadow-lg cursor-pointer"
-                      : "opacity-60 cursor-not-allowed"
-                  }`}
-                  onClick={() => handleRoomClick(room)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="text-3xl">{room.emoji || '🏠'}</div>
-                        <div className="flex-1">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            {room.name || room.title}
-                            {room.isActive && room.activeHours && (
-                              <Badge variant="destructive" className="text-xs animate-pulse">
-                                🔴 LIVE
-                              </Badge>
-                            )}
-                            {!room.isActive && (
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Lock className="w-4 h-4 text-muted-foreground" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="font-semibold mb-1">Room Inactive</p>
-                                  <p className="text-xs">
-                                    Active: {getActiveTimeText(room.activeHours)}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </CardTitle>
-                          <CardDescription className="text-xs">
-                            {room.description}
-                          </CardDescription>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {systemRooms.map((room) => {
+              const RoomIcon = room.iconComponent || MessageCircle;
+              const config = SYSTEM_ROOM_CONFIG[room.name || ''] || 
+                             SYSTEM_ROOM_CONFIG['City Talk'] || 
+                             { gradient: 'from-gray-500/10 via-gray-500/5 to-transparent' };
+              
+              return (
+                <TooltipProvider key={room.id}>
+                  <Card
+                    className={`group relative overflow-hidden transition-all duration-300 border-2 ${
+                      room.isActive
+                        ? "hover:border-primary/50 hover:shadow-2xl hover:scale-[1.02] cursor-pointer"
+                        : "opacity-60 cursor-not-allowed border-border/50"
+                    }`}
+                    onClick={() => handleRoomClick(room)}
+                  >
+                    {/* Gradient Background */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${config.gradient} opacity-50`} />
+                    
+                    <CardHeader className="pb-3 relative z-10">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                          {/* Icon with modern styling */}
+                          <div className={`p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl ${
+                            room.isActive 
+                              ? 'bg-primary/10 text-primary ring-2 ring-primary/20' 
+                              : 'bg-muted text-muted-foreground'
+                          } transition-all duration-300 group-hover:scale-110`}>
+                            <RoomIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base sm:text-lg flex items-center gap-1.5 sm:gap-2 mb-1">
+                              {room.name || room.title}
+                              {room.isActive && room.activeHours && (
+                                <Badge variant="default" className="text-xs px-2 py-0 bg-green-500/10 text-green-600 border border-green-500/20">
+                                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block mr-1 animate-pulse" />
+                                  LIVE
+                                </Badge>
+                              )}
+                              {!room.isActive && (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Lock className="w-4 h-4 text-muted-foreground" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="font-semibold mb-1">Room Inactive</p>
+                                    <p className="text-xs">
+                                      Active: {getActiveTimeText(room.activeHours)}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </CardTitle>
+                            <CardDescription className="text-[10px] sm:text-xs line-clamp-2">
+                              {room.description}
+                            </CardDescription>
+                          </div>
                         </div>
-                      </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Users className="w-4 h-4" />
-                        <span className="font-medium">{room.userCount}</span>
+                  <CardContent className="space-y-2 sm:space-y-3 relative z-10">
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
+                        <div className="p-1 sm:p-1.5 rounded-md bg-primary/10">
+                          <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+                        </div>
+                        <span className="font-semibold text-foreground">{room.userCount}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="w-4 h-4" />
-                        <span className="font-medium">{room.distance}km</span>
+                      <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
+                        <div className="p-1 sm:p-1.5 rounded-md bg-primary/10">
+                          <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+                        </div>
+                        <span className="font-semibold text-foreground">
+                          {room.distance > 0 ? `${room.distance}km` : 'Nearby'}
+                        </span>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        {room.expiry}
-                      </Badge>
+                      {room.activeHours && (
+                        <Badge variant="outline" className="text-xs font-medium border-primary/30 text-primary">
+                          {room.expiry}
+                        </Badge>
+                      )}
                     </div>
                     {room.activeHours && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        <span>{getActiveTimeText(room.activeHours)}</span>
+                      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-muted/50 rounded-lg text-[10px] sm:text-xs">
+                        <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary flex-shrink-0" />
+                        <span className="font-medium truncate">{getActiveTimeText(room.activeHours)}</span>
                       </div>
                     )}
                     {room.isActive && (
@@ -714,37 +895,38 @@ export default function RoomsPage() {
                   </CardContent>
                 </Card>
               </TooltipProvider>
-            ))}
+            );
+            })}
           </div>
         </div>
 
         {/* Custom Rooms Section */}
         <div>
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mb-4 sm:mb-5 md:mb-6">
+            <div className="flex items-center justify-between mb-1 sm:mb-2">
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" />
-                <h2 className="text-3xl font-bold">Custom Rooms</h2>
-                <Badge variant={availableSlots <= 0 ? "destructive" : "secondary"} className="text-sm">
-                  {usedSlots}/5 {availableSlots <= 0 && "FULL"}
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">Custom Rooms</h2>
+                <Badge variant={availableSlots <= 0 ? "destructive" : "secondary"} className="text-xs sm:text-sm">
+                  {usedSlots}/2 {availableSlots <= 0 && "FULL"}
                 </Badge>
               </div>
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Community-created spaces in your area {availableSlots <= 0 && "• All slots occupied"}
             </p>
           </div>
 
           {/* Full Slots Info Card */}
           {availableSlots <= 0 && (
-            <Card className="mb-6 border-destructive/50 bg-destructive/5">
-              <CardContent className="pt-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-destructive mt-0.5" />
-                  <div className="space-y-1 text-sm">
-                    <p className="font-semibold text-destructive">All Room Slots Occupied (5/5)</p>
+            <Card className="mb-4 sm:mb-5 md:mb-6 border-destructive/50 bg-destructive/5">
+              <CardContent className="pt-3 sm:pt-4">
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive mt-0.5 flex-shrink-0" />
+                  <div className="space-y-1 text-xs sm:text-sm">
+                    <p className="font-semibold text-destructive">All Room Slots Occupied (2/2)</p>
                     <p className="text-muted-foreground">
-                      Maximum limit of 5 custom rooms reached in your area. Join existing rooms below or wait for rooms to expire.
+                      Maximum limit of 2 custom rooms reached in your area. Join existing rooms below or wait for rooms to expire.
                     </p>
                   </div>
                 </div>
@@ -752,41 +934,51 @@ export default function RoomsPage() {
             </Card>
           )}
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {customRooms.length > 0 && console.log('Rendering', customRooms.length, 'custom rooms')}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
             {customRooms.map((room) => (
               <Card
                 key={room.id}
-                className="group hover:border-primary/50 transition-all duration-300 hover:shadow-lg cursor-pointer"
+                className="group relative overflow-hidden hover:border-primary/50 transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] cursor-pointer border-2"
                 onClick={() => handleRoomClick(room)}
               >
-                <CardHeader className="pb-3">
+                {/* Gradient Background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-rose-500/5 to-transparent opacity-50" />
+                
+                <CardHeader className="pb-3 relative z-10">
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="text-3xl">{room.emoji || '💬'}</div>
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">{room.title || room.name}</CardTitle>
-                        <CardDescription className="text-xs">
-                          {room.description}
+                    <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                      {/* Icon with modern styling */}
+                      <div className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br from-pink-500/20 to-rose-500/20 text-pink-600 ring-2 ring-pink-500/20 transition-all duration-300 group-hover:scale-110">
+                        <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base sm:text-lg mb-1 truncate">{room.title || room.name}</CardTitle>
+                        <CardDescription className="text-[10px] sm:text-xs flex items-center gap-1.5 truncate">
+                          <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+                          Created by <span className="font-medium text-primary">{room.createdBy}</span>
                         </CardDescription>
                       </div>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Users className="w-4 h-4" />
-                      <span className="font-medium">{room.userCount}</span>
+                <CardContent className="space-y-2 sm:space-y-3 relative z-10">
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
+                      <div className="p-1 sm:p-1.5 rounded-md bg-primary/10">
+                        <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+                      </div>
+                      <span className="font-semibold text-foreground">{room.userCount}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <MapPin className="w-4 h-4" />
-                      <span className="font-medium">{room.distance}km</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
+                      <div className="p-1 sm:p-1.5 rounded-md bg-primary/10">
+                        <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+                      </div>
+                      <span className="font-semibold text-foreground">{room.distance}km</span>
                     </div>
                     {room.expiresAt ? (
                       <CountdownTimer expiresAt={room.expiresAt} showIcon={true} />
                     ) : (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-xs font-medium">
                         {room.expiry}
                       </Badge>
                     )}
@@ -836,7 +1028,9 @@ export default function RoomsPage() {
           {selectedRoom && (
             <div className="space-y-4 py-4">
               <div className="flex items-center gap-3">
-                <div className="text-4xl">{selectedRoom.emoji}</div>
+                <div className="p-3 rounded-xl bg-primary/10 text-primary">
+                  {selectedRoom.iconComponent && <selectedRoom.iconComponent className="w-8 h-8" />}
+                </div>
                 <div>
                   <h3 className="font-semibold text-lg">{selectedRoom.name}</h3>
                   <p className="text-sm text-muted-foreground">{selectedRoom.description}</p>
@@ -865,5 +1059,6 @@ export default function RoomsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </BanCheckWrapper>
   );
 }

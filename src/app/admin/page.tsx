@@ -6,16 +6,33 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   LineChart,
   Line,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   AreaChart,
   Area,
   XAxis,
@@ -30,18 +47,31 @@ import {
   MessageSquare,
   Activity,
   TrendingUp,
-  Clock,
-  Target,
   Ban,
+  Shield,
+  AlertTriangle,
+  Clock,
+  Eye,
+  UserX,
   CheckCircle,
-  AlertCircle,
+  Search,
+  ArrowUpRight,
+  Zap,
 } from 'lucide-react';
-import { analyticsApi, type AnalyticsOverview, type UserStats, type RoomStats, type MessageStats, type EngagementMetrics, type UserActivity, type RoomPopularity, type HourlyActivity, type UserListResponse } from '@/lib/analytics-service';
+import { 
+  analyticsApi, 
+  type AnalyticsOverview, 
+  type UserStats, 
+  type RoomStats, 
+  type MessageStats, 
+  type UserListResponse,
+  type BannedUser,
+  type RecentMessage,
+} from '@/lib/analytics-service';
 import { PageLoader } from '@/components/page-loader';
+import { toast } from 'sonner';
 
 const ADMIN_EMAIL = 'mshubh612@gmail.com';
-
-const COLORS = ['#8b5cf6', '#06b6d4', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#f97316', '#14b8a6'];
 
 export default function AdminPanelPage() {
   const { data: session, status } = useSession();
@@ -53,12 +83,14 @@ export default function AdminPanelPage() {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [roomStats, setRoomStats] = useState<RoomStats | null>(null);
   const [messageStats, setMessageStats] = useState<MessageStats | null>(null);
-  const [engagement, setEngagement] = useState<EngagementMetrics | null>(null);
-  const [userActivity, setUserActivity] = useState<UserActivity[]>([]);
-  const [roomPopularity, setRoomPopularity] = useState<RoomPopularity[]>([]);
-  const [hourlyActivity, setHourlyActivity] = useState<HourlyActivity[]>([]);
   const [userList, setUserList] = useState<UserListResponse | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentMessage[]>([]);
+  
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -83,64 +115,77 @@ export default function AdminPanelPage() {
       setError(null);
 
       const token = (session as any)?.backendToken;
-      console.log('Session:', session);
-      console.log('Backend Token:', token);
       
       if (!token) {
         throw new Error('No access token available');
       }
 
-      // Load all analytics data in parallel
       const [
         overviewData,
         userStatsData,
         roomStatsData,
         messageStatsData,
-        engagementData,
-        userActivityData,
-        roomPopularityData,
-        hourlyActivityData,
         userListData,
+        bannedUsersData,
+        recentActivityData,
       ] = await Promise.all([
         analyticsApi.getOverview(token),
         analyticsApi.getUserStats(token, 30),
         analyticsApi.getRoomStats(token, 30),
         analyticsApi.getMessageStats(token, 30),
-        analyticsApi.getEngagementMetrics(token),
-        analyticsApi.getUserActivity(token, 50),
-        analyticsApi.getRoomPopularity(token),
-        analyticsApi.getHourlyActivity(token),
         analyticsApi.getUserList(token, 1, 20),
+        analyticsApi.getBannedUsers(token),
+        analyticsApi.getRecentActivity(token, 50),
       ]);
 
       setOverview(overviewData);
       setUserStats(userStatsData);
       setRoomStats(roomStatsData);
       setMessageStats(messageStatsData);
-      setEngagement(engagementData);
-      setUserActivity(userActivityData);
-      setRoomPopularity(roomPopularityData);
-      setHourlyActivity(hourlyActivityData);
       setUserList(userListData);
+      setBannedUsers(bannedUsersData);
+      setRecentActivity(recentActivityData);
     } catch (err: any) {
       console.error('Failed to load analytics:', err);
       setError(err.message || 'Failed to load analytics data');
+      toast.error('Failed to load analytics');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadUserListPage = async (page: number) => {
+  const handleBanUser = async () => {
+    if (!selectedUser || !banReason.trim()) return;
+
     try {
       const token = (session as any)?.backendToken;
-      if (!token) return;
-
-      const data = await analyticsApi.getUserList(token, page, 20);
-      setUserList(data);
-      setCurrentPage(page);
+      await analyticsApi.banUser(token, selectedUser.id, banReason);
+      
+      toast.success(`User ${selectedUser.name} has been banned`);
+      setBanDialogOpen(false);
+      setSelectedUser(null);
+      setBanReason('');
+      loadAnalytics();
     } catch (err: any) {
-      console.error('Failed to load user list:', err);
+      toast.error('Failed to ban user: ' + err.message);
     }
+  };
+
+  const handleUnbanUser = async (userId: string, userName: string) => {
+    try {
+      const token = (session as any)?.backendToken;
+      await analyticsApi.unbanUser(token, userId);
+      
+      toast.success(`User ${userName} has been unbanned`);
+      loadAnalytics();
+    } catch (err: any) {
+      toast.error('Failed to unban user: ' + err.message);
+    }
+  };
+
+  const openBanDialog = (user: any) => {
+    setSelectedUser(user);
+    setBanDialogOpen(true);
   };
 
   if (loading) {
@@ -149,16 +194,16 @@ export default function AdminPanelPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-purple-50 via-pink-50 to-cyan-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-cyan-900/20">
-        <Card className="max-w-md">
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <Card className="max-w-md border-red-900/20 bg-slate-900">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-600">
-              <AlertCircle className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-red-500">
+              <Shield className="h-5 w-5" />
               Access Denied
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">{error}</p>
+            <p className="text-slate-400">{error}</p>
           </CardContent>
         </Card>
       </div>
@@ -166,503 +211,574 @@ export default function AdminPanelPage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-purple-50 via-pink-50 to-cyan-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-cyan-900/20 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold bg-linear-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent">
-              Admin Panel
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Comprehensive analytics and user engagement tracking
-            </p>
+    <div className="min-h-screen bg-slate-950">
+      {/* Header */}
+      <div className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-xl sticky top-0 z-50">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-white flex items-center gap-2 sm:gap-3">
+                <Shield className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-purple-500 flex-shrink-0" />
+                <span className="truncate">Admin Control Panel</span>
+              </h1>
+              <p className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1 hidden xs:block">
+                System monitoring and user management
+              </p>
+            </div>
+            <Badge variant="outline" className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 border-purple-500/30 text-purple-400 flex-shrink-0">
+              <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Super </span>Admin
+            </Badge>
           </div>
-          <Badge variant="secondary" className="px-4 py-2">
-            <Users className="h-4 w-4 mr-2" />
-            Admin Access
-          </Badge>
+        </div>
+      </div>
+
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
+          <Card className="border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 transition-all">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3 sm:pt-4 md:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-slate-400">Total Users</CardTitle>
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{overview?.totalUsers.toLocaleString()}</div>
+              <div className="flex items-center gap-1 sm:gap-2 mt-1.5 sm:mt-2">
+                <Badge variant="secondary" className="bg-green-500/10 text-green-400 border-green-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                  <ArrowUpRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                  <span className="hidden xs:inline">{overview?.activeUsersToday} active today</span>
+                  <span className="xs:hidden">{overview?.activeUsersToday} today</span>
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 transition-all">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3 sm:pt-4 md:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-slate-400">Total Messages</CardTitle>
+              <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{overview?.totalMessages.toLocaleString()}</div>
+              <div className="flex items-center gap-1 sm:gap-2 mt-1.5 sm:mt-2">
+                <Badge variant="secondary" className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                  <span className="hidden xs:inline">{overview?.messagesLast24h} in last 24h</span>
+                  <span className="xs:hidden">{overview?.messagesLast24h} / 24h</span>
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 transition-all">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3 sm:pt-4 md:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-slate-400">Active Rooms</CardTitle>
+              <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-cyan-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{overview?.activeRooms}</div>
+              <div className="flex items-center gap-1 sm:gap-2 mt-1.5 sm:mt-2">
+                <span className="text-[10px] sm:text-xs text-slate-500">
+                  {overview?.systemRooms} system • {overview?.userRooms} custom
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 transition-all border-red-500/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3 sm:pt-4 md:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-slate-400">Banned Users</CardTitle>
+              <Ban className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{bannedUsers.length}</div>
+              <div className="flex items-center gap-1 sm:gap-2 mt-1.5 sm:mt-2">
+                <Badge variant="secondary" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                  <AlertTriangle className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                  <span className="hidden xs:inline">Requires attention</span>
+                  <span className="xs:hidden">Alert</span>
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Overview Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-purple-200 dark:border-purple-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-              <Users className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{overview?.totalUsers.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {overview?.activeUsersToday} active today
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-pink-200 dark:border-pink-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Rooms</CardTitle>
-              <Activity className="h-4 w-4 text-pink-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{overview?.activeRooms}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {overview?.systemRooms} system, {overview?.userRooms} user
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-cyan-200 dark:border-cyan-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
-              <MessageSquare className="h-4 w-4 text-cyan-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{overview?.totalMessages.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {overview?.messagesLast24h} in last 24h
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-orange-200 dark:border-orange-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Retention Rate</CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{engagement?.monthlyRetention}%</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Monthly active users
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabs for Different Analytics Views */}
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="rooms">Rooms</TabsTrigger>
-            <TabsTrigger value="engagement">Engagement</TabsTrigger>
-            <TabsTrigger value="userlist">User List</TabsTrigger>
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="users" className="space-y-4 sm:space-y-6">
+          <TabsList className="bg-slate-900 border border-slate-800 w-full sm:w-auto grid grid-cols-2 sm:flex h-auto gap-1 p-1">
+            <TabsTrigger value="users" className="data-[state=active]:bg-slate-800 text-xs sm:text-sm px-2 sm:px-4">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Users</span>
+              <span className="xs:hidden">All</span>
+            </TabsTrigger>
+            <TabsTrigger value="banned" className="data-[state=active]:bg-slate-800 text-xs sm:text-sm px-2 sm:px-4">
+              <UserX className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Banned Users</span>
+              <span className="sm:hidden">Banned</span>
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800 text-xs sm:text-sm px-2 sm:px-4">
+              <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Activity</span>
+              <span className="xs:hidden">Live</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-slate-800 text-xs sm:text-sm px-2 sm:px-4">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Analytics</span>
+              <span className="xs:hidden">Stats</span>
+            </TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Messages Per Day */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Messages Per Day (Last 30 Days)</CardTitle>
-                  <CardDescription>Daily message activity</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={messageStats?.messagesPerDay || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      />
-                      <YAxis />
-                      <Tooltip />
-                      <Area type="monotone" dataKey="count" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Hourly Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Activity by Hour</CardTitle>
-                  <CardDescription>Messages sent per hour (Last 7 days)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={hourlyActivity}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="hour" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="messageCount" fill="#06b6d4" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Room Popularity */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Most Popular Rooms (Last 30 Days)</CardTitle>
-                <CardDescription>Top 20 rooms by message count</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={roomPopularity} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis 
-                      dataKey="roomName" 
-                      type="category" 
-                      width={150}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip />
-                    <Bar dataKey="messageCount" fill="#ec4899" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Users Tab */}
-          <TabsContent value="users" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* New Users Per Day */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>New Users Per Day</CardTitle>
-                  <CardDescription>User registration trend (Last 30 days)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={userStats?.newUsersPerDay || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          <TabsContent value="users" className="space-y-4 sm:space-y-6">
+            <Card className="border-slate-800 bg-slate-900/50">
+              <CardHeader className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0">
+                    <CardTitle className="text-white text-base sm:text-lg md:text-xl">User Management</CardTitle>
+                    <CardDescription className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">
+                      View and manage all registered users
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="relative flex-1 sm:flex-none">
+                      <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-slate-500" />
+                      <Input
+                        placeholder="Search users..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 sm:pl-10 bg-slate-800 border-slate-700 text-white w-full sm:w-[200px] md:w-[300px] h-8 sm:h-10 text-xs sm:text-sm"
                       />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={2} name="New Users" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Active Users Per Day */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Active Users Per Day</CardTitle>
-                  <CardDescription>Daily active users (Last 30 days)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={userStats?.activeUsersPerDay || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      />
-                      <YAxis />
-                      <Tooltip />
-                      <Area type="monotone" dataKey="count" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.6} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent User Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent User Activity</CardTitle>
-                <CardDescription>Last 50 active users</CardDescription>
+                    </div>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-125">
-                  <div className="space-y-2">
-                    {userActivity.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage src={user.avatarUrl} alt={user.name} />
-                            <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{user.name}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{user.messageCount} messages</p>
-                            <p className="text-xs text-muted-foreground">
-                              Last login: {new Date(user.lastLogin).toLocaleDateString()}
-                            </p>
-                          </div>
-                          {user.banned && (
-                            <Badge variant="destructive">
-                              <Ban className="h-3 w-3 mr-1" />
-                              Banned
+              <CardContent className="p-0 sm:p-6">
+                <div className="border-0 sm:border border-slate-800 rounded-none sm:rounded-lg overflow-x-auto">
+                  <Table className="min-w-[800px]">
+                    <TableHeader>
+                      <TableRow className="bg-slate-800/50 hover:bg-slate-800/50">
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">User</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Email</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Messages</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Violations</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Last Login</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Status</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {userList?.users
+                        .filter(user => 
+                          !searchQuery || 
+                          user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          user.email.toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .map((user) => (
+                        <TableRow key={user.id} className="border-slate-800 hover:bg-slate-800/30">
+                          <TableCell className="py-2 sm:py-4">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border border-slate-700 sm:border-2">
+                                <AvatarImage src={user.avatarUrl} />
+                                <AvatarFallback className="bg-slate-800 text-white text-xs sm:text-sm">
+                                  {user.name?.charAt(0) || 'U'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <div className="font-medium text-white text-xs sm:text-sm truncate">{user.name || 'Anonymous'}</div>
+                                <div className="text-[10px] sm:text-xs text-slate-500">
+                                  {new Date(user.createdAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-slate-300 text-xs sm:text-sm truncate max-w-[150px]">{user.email}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                              {user.messageCount}
                             </Badge>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Rooms Tab */}
-          <TabsContent value="rooms" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Rooms Created Per Day */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Rooms Created Per Day</CardTitle>
-                  <CardDescription>Room creation trend (Last 30 days)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={roomStats?.roomsPerDay || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="systemRooms" stroke="#8b5cf6" name="System Rooms" />
-                      <Line type="monotone" dataKey="userRooms" stroke="#ec4899" name="User Rooms" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Room Type Distribution */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Room Type Distribution</CardTitle>
-                  <CardDescription>System rooms by type (Last 30 days)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={roomStats?.roomTypeDistribution || []}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ roomType, percent }) => `${roomType}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="count"
-                      >
-                        {(roomStats?.roomTypeDistribution || []).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Room Stats Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Room Statistics</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-lg border bg-purple-50 dark:bg-purple-950/20">
-                    <p className="text-sm text-muted-foreground">Average Messages per Room</p>
-                    <p className="text-3xl font-bold text-purple-600">{messageStats?.averageMessagesPerRoom}</p>
-                  </div>
-                  <div className="p-4 rounded-lg border bg-pink-50 dark:bg-pink-950/20">
-                    <p className="text-sm text-muted-foreground">Rooms with Messages</p>
-                    <p className="text-3xl font-bold text-pink-600">{messageStats?.totalRoomsWithMessages}</p>
-                  </div>
-                  <div className="p-4 rounded-lg border bg-cyan-50 dark:bg-cyan-950/20">
-                    <p className="text-sm text-muted-foreground">Active Rooms</p>
-                    <p className="text-3xl font-bold text-cyan-600">{overview?.activeRooms}</p>
-                  </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                `text-[10px] sm:text-xs px-1.5 sm:px-2 ${
+                                user.violationCount === 0 
+                                  ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                  : user.violationCount < 5
+                                  ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                                  : user.violationCount < 10
+                                  ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                                  : "bg-red-500/10 text-red-400 border-red-500/20"
+                                }`
+                              }
+                            >
+                              {user.violationCount || 0}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-400 text-[10px] sm:text-xs">
+                            <div className="flex items-center gap-1 sm:gap-2">
+                              <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                              <span className="truncate max-w-[100px]">{new Date(user.lastLogin).toLocaleDateString()}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {user.banned ? (
+                              <Badge variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                                <Ban className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                                <span className="hidden sm:inline">Banned</span>
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-green-500/10 text-green-400 border-green-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                                <CheckCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                                <span className="hidden sm:inline">Active</span>
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {!user.banned ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openBanDialog(user)}
+                                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
+                              >
+                                <Ban className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Ban User</span>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleUnbanUser(user.id, user.name)}
+                                className="text-green-400 hover:text-green-300 hover:bg-green-500/10 h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
+                              >
+                                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Unban</span>
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Engagement Tab */}
-          <TabsContent value="engagement" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Retention Metrics */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>User Retention</CardTitle>
-                  <CardDescription>Active user retention rates</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Weekly Active Users</span>
-                      <Badge variant="secondary">{engagement?.weeklyActiveUsers}</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Monthly Active Users</span>
-                      <Badge variant="secondary">{engagement?.monthlyActiveUsers}</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Weekly Retention</span>
-                      <Badge className="bg-linear-to-r from-purple-600 to-pink-600">
-                        {engagement?.weeklyRetention}%
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Monthly Retention</span>
-                      <Badge className="bg-linear-to-r from-cyan-600 to-purple-600">
-                        {engagement?.monthlyRetention}%
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="pt-4">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={[
-                          { name: 'Weekly', value: parseFloat(engagement?.weeklyRetention || '0') },
-                          { name: 'Monthly', value: parseFloat(engagement?.monthlyRetention || '0') },
-                        ]}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="value" fill="#8b5cf6" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Top Message Senders */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Contributors</CardTitle>
-                  <CardDescription>Most active users (Last 30 days)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-100">
-                    <div className="space-y-2">
-                      {engagement?.topMessageSenders.map((sender, index) => (
-                        <div
-                          key={sender.username}
-                          className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-linear-to-r from-purple-600 to-pink-600 text-white font-bold">
-                              {index + 1}
-                            </div>
-                            <span className="font-medium">{sender.username}</span>
-                          </div>
-                          <Badge variant="secondary">
-                            {sender.messageCount} messages
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* User List Tab */}
-          <TabsContent value="userlist" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>All Users</CardTitle>
-                <CardDescription>
-                  Total: {userList?.total} users | Page {userList?.page} of {userList?.totalPages}
+          {/* Banned Users Tab */}
+          <TabsContent value="banned" className="space-y-4 sm:space-y-6">
+            <Card className="border-slate-800 bg-slate-900/50 border-red-500/20">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-white flex items-center gap-2 text-base sm:text-lg md:text-xl">
+                  <UserX className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
+                  Banned Users ({bannedUsers.length})
+                </CardTitle>
+                <CardDescription className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">
+                  Users who have been restricted from the platform
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-150">
-                  <div className="space-y-2">
-                    {userList?.users.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={user.avatarUrl} alt={user.name} />
-                            <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-semibold">{user.name}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                            <div className="flex gap-2 mt-1">
-                              <span className="text-xs text-muted-foreground">
-                                Joined: {new Date(user.createdAt).toLocaleDateString()}
-                              </span>
-                              <span className="text-xs text-muted-foreground">•</span>
-                              <span className="text-xs text-muted-foreground">
-                                Last login: {new Date(user.lastLogin).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{user.messageCount} messages</p>
-                          </div>
-                          {user.banned ? (
-                            <Badge variant="destructive">
-                              <Ban className="h-3 w-3 mr-1" />
-                              Banned
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-100">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Active
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+              <CardContent className="p-4 sm:p-6">
+                {bannedUsers.length === 0 ? (
+                  <div className="text-center py-8 sm:py-12">
+                    <CheckCircle className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-green-500 mb-3 sm:mb-4" />
+                    <p className="text-slate-400 text-sm sm:text-base">No banned users</p>
                   </div>
-                </ScrollArea>
-
-                {/* Pagination */}
-                {userList && userList.totalPages > 1 && (
-                  <div className="flex justify-center gap-2 mt-4">
-                    <button
-                      onClick={() => loadUserListPage(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="px-4 py-2 rounded-lg border bg-card hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    <span className="px-4 py-2">
-                      Page {currentPage} of {userList.totalPages}
-                    </span>
-                    <button
-                      onClick={() => loadUserListPage(currentPage + 1)}
-                      disabled={currentPage === userList.totalPages}
-                      className="px-4 py-2 rounded-lg border bg-card hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
+                ) : (
+                  <div className="space-y-3 sm:space-y-4">
+                    {bannedUsers.map((user) => (
+                      <Card key={user.id} className="border-slate-800 bg-slate-800/50">
+                        <CardContent className="pt-3 sm:pt-4 md:pt-6 p-3 sm:p-4 md:p-6">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+                            <div className="flex items-start gap-2 sm:gap-3 md:gap-4 min-w-0 flex-1">
+                              <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border border-red-500/30 sm:border-2 flex-shrink-0">
+                                <AvatarFallback className="bg-red-500/10 text-red-400 text-sm sm:text-base">
+                                  {user.name?.charAt(0) || 'U'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                  <h3 className="font-semibold text-white text-sm sm:text-base truncate">{user.name || user.email}</h3>
+                                  <Badge variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                                    Banned
+                                  </Badge>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={
+                                      `text-[10px] sm:text-xs px-1.5 sm:px-2 ${
+                                      user.violationCount < 5
+                                        ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                                        : user.violationCount < 10
+                                        ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                                        : "bg-red-500/10 text-red-400 border-red-500/20"
+                                      }`
+                                    }
+                                  >
+                                    {user.violationCount || 0}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-400 truncate">{user.email}</p>
+                                <p className="text-xs sm:text-sm text-slate-500 truncate">
+                                  Anonymous: {user.anonymousName}
+                                </p>
+                                {user.banReason && (
+                                  <div className="mt-2 sm:mt-3 p-2 sm:p-3 bg-red-500/5 border border-red-500/20 rounded-lg">
+                                    <p className="text-xs sm:text-sm text-slate-400">
+                                      <span className="font-medium text-red-400">Reason:</span> {user.banReason}
+                                    </p>
+                                  </div>
+                                )}
+                                <p className="text-[10px] sm:text-xs text-slate-500 mt-1 sm:mt-2">
+                                  Last login: {new Date(user.lastLogin).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUnbanUser(user.id, user.name)}
+                              className="border-green-500/30 text-green-400 hover:bg-green-500/10 h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3 w-full sm:w-auto flex-shrink-0"
+                            >
+                              <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                              Unban User
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Live Activity Tab */}
+          <TabsContent value="activity" className="space-y-4 sm:space-y-6">
+            <Card className="border-slate-800 bg-slate-900/50">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-white flex items-center gap-2 text-base sm:text-lg md:text-xl">
+                  <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-cyan-500" />
+                  Recent Activity
+                </CardTitle>
+                <CardDescription className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">
+                  Real-time message stream from all rooms
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6">
+                <ScrollArea className="h-[400px] sm:h-[500px] md:h-[600px] pr-2 sm:pr-4">
+                  <div className="space-y-2 sm:space-y-3">
+                    {recentActivity.map((msg) => (
+                      <Card key={msg.id} className="border-slate-800 bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
+                        <CardContent className="pt-3 sm:pt-4 p-3 sm:p-4">
+                          <div className="flex items-start gap-2 sm:gap-3">
+                            <div className="p-1.5 sm:p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex-shrink-0">
+                              <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1 sm:gap-2 mb-0.5 sm:mb-1 flex-wrap">
+                                <span className="font-medium text-white text-xs sm:text-sm truncate">{msg.username}</span>
+                                <Badge variant="outline" className="text-[10px] sm:text-xs border-slate-700 text-slate-400 px-1.5 sm:px-2">
+                                  {msg.roomName}
+                                </Badge>
+                                <span className="text-[10px] sm:text-xs text-slate-500 ml-auto flex-shrink-0">
+                                  {new Date(msg.createdAt).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="text-xs sm:text-sm text-slate-300 break-words">{msg.message}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+              {/* User Growth Chart */}
+              <Card className="border-slate-800 bg-slate-900/50">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-white text-base sm:text-lg md:text-xl">User Growth</CardTitle>
+                  <CardDescription className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">New users over the last 30 days</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6">
+                  <ResponsiveContainer width="100%" height={250}>  
+                    <AreaChart data={userStats?.newUsersPerDay || []}>
+                      <defs>
+                        <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" stroke="#64748b" />
+                      <YAxis stroke="#64748b" />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                        labelStyle={{ color: '#94a3b8' }}
+                      />
+                      <Area type="monotone" dataKey="count" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorUsers)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Messages Chart */}
+              <Card className="border-slate-800 bg-slate-900/50">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-white text-base sm:text-lg md:text-xl">Message Activity</CardTitle>
+                  <CardDescription className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">Messages sent over the last 30 days</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={messageStats?.messagesPerDay || []}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" stroke="#64748b" />
+                      <YAxis stroke="#64748b" />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                        labelStyle={{ color: '#94a3b8' }}
+                      />
+                      <Bar dataKey="count" fill="#a855f7" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Room Stats */}
+              <Card className="border-slate-800 bg-slate-900/50">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-white text-base sm:text-lg md:text-xl">Room Creation</CardTitle>
+                  <CardDescription className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">System vs Custom rooms over time</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={roomStats?.roomsPerDay || []}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" stroke="#64748b" />
+                      <YAxis stroke="#64748b" />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                        labelStyle={{ color: '#94a3b8' }}
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="systemRooms" stroke="#06b6d4" strokeWidth={2} name="System" />
+                      <Line type="monotone" dataKey="userRooms" stroke="#ec4899" strokeWidth={2} name="Custom" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Additional Stats */}
+              <Card className="border-slate-800 bg-slate-900/50">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-white text-base sm:text-lg md:text-xl">Platform Statistics</CardTitle>
+                  <CardDescription className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">Key performance indicators</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6">
+                  <div className="space-y-2 sm:space-y-3 md:space-y-4">
+                    <div className="flex items-center justify-between p-2.5 sm:p-3 md:p-4 bg-slate-800/50 rounded-lg">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div className="p-1.5 sm:p-2 bg-purple-500/10 rounded-lg flex-shrink-0">
+                          <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+                        </div>
+                        <span className="text-slate-300 text-xs sm:text-sm md:text-base truncate">Avg. Messages/Room</span>
+                      </div>
+                      <span className="text-lg sm:text-xl md:text-2xl font-bold text-white flex-shrink-0 ml-2">
+                        {messageStats?.averageMessagesPerRoom.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2.5 sm:p-3 md:p-4 bg-slate-800/50 rounded-lg">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div className="p-1.5 sm:p-2 bg-cyan-500/10 rounded-lg flex-shrink-0">
+                          <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-cyan-500" />
+                        </div>
+                        <span className="text-slate-300 text-xs sm:text-sm md:text-base truncate">Rooms with Messages</span>
+                      </div>
+                      <span className="text-lg sm:text-xl md:text-2xl font-bold text-white flex-shrink-0 ml-2">
+                        {messageStats?.totalRoomsWithMessages}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2.5 sm:p-3 md:p-4 bg-slate-800/50 rounded-lg">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div className="p-1.5 sm:p-2 bg-blue-500/10 rounded-lg flex-shrink-0">
+                          <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+                        </div>
+                        <span className="text-slate-300 text-xs sm:text-sm md:text-base truncate">Active Users Today</span>
+                      </div>
+                      <span className="text-lg sm:text-xl md:text-2xl font-bold text-white flex-shrink-0 ml-2">
+                        {overview?.activeUsersToday}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Ban User Dialog */}
+      <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 w-[calc(100%-2rem)] sm:w-full max-w-md mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2 text-base sm:text-lg">
+              <Ban className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
+              Ban User
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs sm:text-sm">
+              This will prevent the user from accessing the platform
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
+              <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-slate-800/50 rounded-lg">
+                <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border border-slate-700 sm:border-2">
+                  <AvatarImage src={selectedUser.avatarUrl} />
+                  <AvatarFallback className="bg-slate-800 text-white text-sm sm:text-base">
+                    {selectedUser.name?.charAt(0) || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-white text-sm sm:text-base truncate">{selectedUser.name}</div>
+                  <div className="text-xs sm:text-sm text-slate-400 truncate">{selectedUser.email}</div>
+                </div>
+              </div>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="reason" className="text-slate-300 text-xs sm:text-sm">Ban Reason</Label>
+                <Textarea
+                  id="reason"
+                  placeholder="Enter the reason for banning this user..."
+                  value={banReason}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBanReason(e.target.value)}
+                  className="bg-slate-800 border-slate-700 text-white min-h-[80px] sm:min-h-[100px] text-xs sm:text-sm"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setBanDialogOpen(false)}
+              className="border-slate-700 w-full sm:w-auto h-9 sm:h-10 text-xs sm:text-sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleBanUser}
+              disabled={!banReason.trim()}
+              className="bg-red-500 hover:bg-red-600 w-full sm:w-auto h-9 sm:h-10 text-xs sm:text-sm"
+            >
+              <Ban className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              Ban User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

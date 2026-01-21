@@ -502,20 +502,20 @@ export default function ChatRoomPage() {
 
       {/* Header */}
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => router.push("/rooms")}>
-                <ArrowLeft className="h-5 w-5" />
+        <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0 flex-1">
+              <Button variant="ghost" size="icon" onClick={() => router.push("/rooms")} className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <div>
-                <h1 className="text-xl font-bold">{roomName || roomDetails?.name || "Chat Room"}</h1>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Badge variant={connected ? "default" : "secondary"} className="text-xs">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold truncate">{roomName || roomDetails?.name || "Chat Room"}</h1>
+                <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
+                  <Badge variant={connected ? "default" : "secondary"} className="text-[10px] sm:text-xs px-1.5 py-0 sm:px-2">
                     {connected ? "Connected" : "Connecting..."}
                   </Badge>
                   {roomType && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-[10px] sm:text-xs px-1.5 py-0 sm:px-2 hidden xs:inline-flex">
                       {roomType}
                     </Badge>
                   )}
@@ -530,10 +530,10 @@ export default function ChatRoomPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
               {isLastUser && roomDetails?.isUserRoom && (
-                <Badge variant="destructive" className="gap-2 animate-pulse">
-                  <AlertCircle className="w-3 h-3" />
+                <Badge variant="destructive" className="gap-1 sm:gap-2 animate-pulse text-[10px] sm:text-xs px-1.5 sm:px-2 hidden sm:flex">
+                  <AlertCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   Last User
                 </Badge>
               )}
@@ -542,13 +542,13 @@ export default function ChatRoomPage() {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger>
-                      <Badge variant="secondary" className="gap-2">
-                        <Clock className="w-3 h-3" />
+                      <Badge variant="secondary" className="gap-1 sm:gap-2 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                        <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                         {slowModeTimer}s
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Slow mode: Wait {slowModeTimer}s before sending next message</p>
+                      <p className="text-xs">Slow mode: Wait {slowModeTimer}s before sending next message</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -557,22 +557,22 @@ export default function ChatRoomPage() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <Card className="px-3 py-1.5 transition-all hover:shadow-md">
-                      <div className="flex items-center gap-2">
+                    <Card className="px-2 py-1 sm:px-3 sm:py-1.5 transition-all hover:shadow-md">
+                      <div className="flex items-center gap-1 sm:gap-2">
                         <div className="relative">
-                          <Users className="w-4 h-4 text-primary" />
-                          <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                          <Users className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                          <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 flex h-1.5 w-1.5 sm:h-2 sm:w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-green-500"></span>
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-primary">{activeUsers}</span>
-                        <span className="text-xs text-muted-foreground">online</span>
+                        <span className="text-xs sm:text-sm font-bold text-primary">{activeUsers}</span>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground hidden xs:inline">online</span>
                       </div>
                     </Card>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{activeUsers} {activeUsers === 1 ? 'user' : 'users'} currently in this room</p>
+                    <p className="text-xs">{activeUsers} {activeUsers === 1 ? 'user' : 'users'} currently in this room</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -584,11 +584,12 @@ export default function ChatRoomPage() {
       {/* Last User Warning Banner */}
       {isLastUser && roomDetails?.isUserRoom && (
         <div className="border-b bg-destructive/10 backdrop-blur">
-          <div className="container mx-auto px-4 py-2">
-            <div className="flex items-center justify-center gap-2 text-sm text-destructive">
-              <AlertCircle className="w-4 h-4" />
-              <span className="font-medium">
-                You are the last person in this room. The room will be permanently deleted when you leave.
+          <div className="container mx-auto px-3 sm:px-4 py-1.5 sm:py-2">
+            <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-destructive">
+              <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="font-medium text-center">
+                <span className="hidden sm:inline">You are the last person in this room. The room will be permanently deleted when you leave.</span>
+                <span className="sm:hidden">Last user - room will delete when you leave</span>
               </span>
             </div>
           </div>
@@ -596,16 +597,16 @@ export default function ChatRoomPage() {
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="container mx-auto max-w-4xl space-y-4">
+      <div className="flex-1 overflow-y-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6">
+        <div className="container mx-auto max-w-4xl space-y-3 sm:space-y-4">
           {/* Info Card */}
           <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="pt-4">
-              <div className="flex items-start gap-3">
-                <Info className="w-5 h-5 text-primary mt-0.5" />
-                <div className="space-y-1 text-sm">
+            <CardContent className="pt-3 sm:pt-4 pb-3 sm:pb-4">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <Info className="w-4 h-4 sm:w-5 sm:h-5 text-primary mt-0.5 flex-shrink-0" />
+                <div className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm">
                   <p className="font-medium">Chat Guidelines</p>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground leading-relaxed">
                     Be respectful. Anonymous chat - no personal info sharing. Slow mode: 5s cooldown between messages.
                   </p>
                 </div>
@@ -617,29 +618,29 @@ export default function ChatRoomPage() {
           {messages.map((msg, index) => (
             <div key={index} className={msg.isSystem ? "flex justify-center" : ""}>
               {msg.isSystem ? (
-                <Badge variant="secondary" className="text-xs py-1">
+                <Badge variant="secondary" className="text-[10px] sm:text-xs py-0.5 sm:py-1 px-2 sm:px-3">
                   {msg.message}
                 </Badge>
               ) : (
                 <div
-                  className={`flex gap-3 ${
+                  className={`flex gap-2 sm:gap-3 ${
                     msg.username === assignedUsername ? "flex-row-reverse" : ""
                   }`}
                 >
-                  <Avatar className={`w-10 h-10 ${getAvatarColor(msg.username)}`}>
-                    <AvatarFallback className="text-white font-semibold">
+                  <Avatar className={`w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 flex-shrink-0 ${getAvatarColor(msg.username)}`}>
+                    <AvatarFallback className="text-white font-semibold text-xs sm:text-sm">
                       {msg.username.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
 
                   <div
-                    className={`flex-1 max-w-[70%] ${
+                    className={`flex-1 max-w-[75%] sm:max-w-[70%] ${
                       msg.username === assignedUsername ? "items-end" : "items-start"
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">{msg.username}</span>
-                      <span className="text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
+                      <span className="text-xs sm:text-sm font-medium truncate">{msg.username}</span>
+                      <span className="text-[10px] sm:text-xs text-muted-foreground flex-shrink-0">
                         {formatTimestamp(msg.time)}
                       </span>
                     </div>
@@ -650,8 +651,8 @@ export default function ChatRoomPage() {
                           : "bg-muted"
                       }
                     >
-                      <CardContent className="py-2 px-4">
-                        <p className="text-sm break-words">{msg.message}</p>
+                      <CardContent className="py-1.5 sm:py-2 px-2.5 sm:px-3 md:px-4">
+                        <p className="text-xs sm:text-sm break-words">{msg.message}</p>
                       </CardContent>
                     </Card>
                   </div>
@@ -665,8 +666,8 @@ export default function ChatRoomPage() {
 
       {/* Input Area */}
       <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-4 max-w-4xl">
-          <div className="flex items-center gap-3">
+        <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 md:py-4 max-w-4xl">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex-1 relative">
               <Input
                 placeholder={
@@ -678,13 +679,13 @@ export default function ChatRoomPage() {
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={!connected || slowModeActive}
-                className="pr-12"
+                className="pr-12 sm:pr-16 text-sm h-9 sm:h-10"
                 maxLength={500}
               />
               {slowModeActive && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <Badge variant="secondary" className="text-xs">
-                    <Clock className="w-3 h-3 mr-1" />
+                <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2">
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5 sm:px-2">
+                    <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-0.5 sm:mr-1" />
                     {slowModeTimer}s
                   </Badge>
                 </div>
@@ -694,21 +695,21 @@ export default function ChatRoomPage() {
               onClick={handleSendMessage}
               disabled={!message.trim() || !connected || slowModeActive}
               size="icon"
-              className="h-10 w-10"
+              className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           </div>
-          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-4">
-              <span>You: {assignedUsername || "Connecting..."}</span>
-              <Separator orientation="vertical" className="h-4" />
-              <div className="flex items-center gap-1">
-                <Shield className="w-3 h-3" />
-                <span>Anonymous</span>
+          <div className="flex items-center justify-between mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+              <span className="truncate">You: {assignedUsername || "Connecting..."}</span>
+              <Separator orientation="vertical" className="h-3 sm:h-4 hidden xs:block" />
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                <span className="hidden xs:inline">Anonymous</span>
               </div>
             </div>
-            <span>{message.length}/500</span>
+            <span className="flex-shrink-0 ml-2">{message.length}/500</span>
           </div>
         </div>
       </div>

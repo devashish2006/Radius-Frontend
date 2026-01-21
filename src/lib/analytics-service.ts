@@ -62,6 +62,7 @@ export interface UserActivity {
   createdAt: string;
   banned: boolean;
   messageCount: number;
+  violationCount: number;
 }
 
 export interface RoomPopularity {
@@ -88,11 +89,34 @@ export interface UserListResponse {
     banned: boolean;
     banReason: string | null;
     messageCount: number;
+    violationCount: number;
   }>;
   total: number;
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface BannedUser {
+  id: string;
+  email: string;
+  name: string;
+  anonymousName: string;
+  banned: boolean;
+  banReason: string | null;
+  lastLogin: string;
+  createdAt: string;
+  violationCount: number;
+}
+
+export interface RecentMessage {
+  id: string;
+  message: string;
+  username: string;
+  roomId: string;
+  roomName: string;
+  createdAt: string;
+  userId: string | null;
 }
 
 class AnalyticsApiService {
@@ -151,6 +175,48 @@ class AnalyticsApiService {
 
   async getUserList(token: string, page: number = 1, limit: number = 20): Promise<UserListResponse> {
     return this.fetchWithAuth(`${this.baseUrl}/analytics/user-list?page=${page}&limit=${limit}`, token);
+  }
+
+  async banUser(token: string, userId: string, reason: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${this.baseUrl}/analytics/ban-user/${userId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reason }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to ban user');
+    }
+
+    return response.json();
+  }
+
+  async unbanUser(token: string, userId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${this.baseUrl}/analytics/unban-user/${userId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to unban user');
+    }
+
+    return response.json();
+  }
+
+  async getBannedUsers(token: string): Promise<BannedUser[]> {
+    return this.fetchWithAuth(`${this.baseUrl}/analytics/banned-users`, token);
+  }
+
+  async getRecentActivity(token: string, limit: number = 100): Promise<RecentMessage[]> {
+    return this.fetchWithAuth(`${this.baseUrl}/analytics/recent-activity?limit=${limit}`, token);
   }
 }
 
