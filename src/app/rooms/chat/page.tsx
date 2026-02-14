@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -39,7 +39,7 @@ interface Message {
   isSystem?: boolean;
 }
 
-export default function ChatRoomPage() {
+function ChatRoomPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -222,7 +222,7 @@ export default function ChatRoomPage() {
         setActiveUsers(count);
         
         // Check if user is now the last one in a user room
-        if (count === 1 && details?.isUserRoom) {
+        if (count === 1 && details?.type === 'user') {
           setIsLastUser(true);
         } else if (count > 1) {
           setIsLastUser(false);
@@ -495,7 +495,7 @@ export default function ChatRoomPage() {
       {activeUsers === 1 && connected && (
         <WaitingForUsers 
           roomName={roomName || roomDetails?.name} 
-          roomType={roomType}
+          roomType={roomType ?? undefined}
           onTimeout={handleWaitingTimeout}
         />
       )}
@@ -714,5 +714,20 @@ export default function ChatRoomPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatRoomPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen bg-gradient-to-b from-background via-background to-muted/20 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-muted-foreground">Loading chat room...</p>
+        </div>
+      </div>
+    }>
+      <ChatRoomPageContent />
+    </Suspense>
   );
 }
