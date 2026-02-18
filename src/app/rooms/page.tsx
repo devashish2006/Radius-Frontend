@@ -21,6 +21,7 @@ import {
   Moon,
   Sun,
   Briefcase,
+  Share2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -887,10 +888,43 @@ export default function RoomsPage() {
                       </div>
                     )}
                     {room.isActive && (
-                      <Button className="w-full" size="sm">
-                        Join Room
-                        <MessageCircle className="w-4 h-4 ml-2" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          className="flex-1" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRoomClick(room);
+                          }}
+                        >
+                          Join Room
+                          <MessageCircle className="w-4 h-4 ml-2" />
+                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="px-3"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const roomUrl = `${window.location.origin}/rooms/chat?id=${room.id}&name=${encodeURIComponent(room.name || room.title || 'Chat Room')}&type=system`;
+                                  const message = `🎯 Join me on Radius!\n\n📍 Room: ${room.name || room.title}\n💬 ${room.description}\n\n🔗 Click to join: ${roomUrl}`;
+                                  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+                                  window.open(whatsappUrl, '_blank');
+                                  toast.success('Opening WhatsApp...');
+                                }}
+                              >
+                                <Share2 className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">Share via WhatsApp</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -986,10 +1020,43 @@ export default function RoomsPage() {
                   <div className="text-xs text-muted-foreground">
                     Created by <span className="font-medium">{room.createdBy}</span>
                   </div>
-                  <Button className="w-full" size="sm">
-                    Join Room
-                    <MessageCircle className="w-4 h-4 ml-2" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1" 
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRoomClick(room);
+                      }}
+                    >
+                      Join Room
+                      <MessageCircle className="w-4 h-4 ml-2" />
+                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="px-3"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const roomUrl = `${window.location.origin}/rooms/chat?id=${room.id}&name=${encodeURIComponent(room.title || room.name || 'Chat Room')}&type=custom`;
+                              const message = `🎯 Join me on Radius!\n\n📍 Room: ${room.title || room.name}\n👤 Created by ${room.createdBy}\n💬 Custom room nearby\n\n🔗 Click to join: ${roomUrl}`;
+                              const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+                              window.open(whatsappUrl, '_blank');
+                              toast.success('Opening WhatsApp...');
+                            }}
+                          >
+                            <Share2 className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Share via WhatsApp</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </CardContent>
               </Card>
             ))}

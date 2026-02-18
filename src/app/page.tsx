@@ -3,20 +3,18 @@
 import { 
   MessageCircle, 
   MapPin, 
-  Clock, 
   Shield, 
   Zap, 
   Users, 
   Heart,
   Sparkles,
-  TrendingUp,
   ArrowRight,
   Github,
   Instagram,
   Twitter,
   CheckCircle2,
-  BarChart3,
   Activity,
+  BarChart3,
   LogIn,
   Moon,
   Sun,
@@ -26,9 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { useEffect, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/page-loader";
 import { signIn, useSession } from "next-auth/react";
@@ -36,9 +32,7 @@ import { toast } from "sonner";
 import { ActiveUsersDialog } from "@/components/active-users-dialog";
 import { AnimatedWorldMap } from "@/components/animated-world-map";
 import { BackgroundMusic } from "@/components/background-music";
-import { useCountAnimation } from "@/hooks/use-count-animation";
-import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
+import { motion } from "framer-motion";
 
 export default function Home() {
   const [progress, setProgress] = useState(0);
@@ -47,15 +41,9 @@ export default function Home() {
   const router = useRouter();
   const { data: session, status } = useSession();
   
-  // Animation refs
-  const chartRef = useRef(null);
-  const statsRef = useRef(null);
-  const chartInView = useInView(chartRef, { once: true, margin: "-100px" });
+
   
-  // Count animations for stats
-  const dailyMessages = useCountAnimation(2400, 2000);
-  const activeConversations = useCountAnimation(850, 2000);
-  const themedRooms = useCountAnimation(7, 1500);
+
 
   useEffect(() => {
     const timer = setTimeout(() => setProgress(92), 500);
@@ -94,77 +82,45 @@ export default function Home() {
   const features = [
     {
       icon: MapPin,
-      title: "Location-Based Discovery",
-      description: "Automatically discover themed chat rooms within your area. Connect with people nearby in real-time conversations.",
+      title: "Location-Based Chat",
+      description: "Discover and join chat rooms within a customizable proximity radius from your location.",
       color: "text-blue-500",
       bgColor: "bg-blue-500/10"
     },
     {
       icon: MessageCircle,
-      title: "Themed Conversations",
-      description: "8 unique room types for every mood: Confessions, City Talk, Hostel Stories, Exam Reactions, Late Night Thoughts, Corporate Chronicles, and more.",
+      title: "Themed Rooms",
+      description: "Multiple themed conversation spaces for different contexts and times of day.",
       color: "text-purple-500",
       bgColor: "bg-purple-500/10"
     },
     {
       icon: Shield,
-      title: "Anonymous & Safe",
-      description: "Express yourself freely with auto-generated anonymous names. Your privacy is our priority.",
+      title: "Anonymous & Secure",
+      description: "Chat with auto-generated anonymous identities. Your personal information stays private.",
       color: "text-green-500",
       bgColor: "bg-green-500/10"
     },
     {
-      icon: Clock,
-      title: "Time-Sensitive Rooms",
-      description: "Special rooms activate at specific times: Late Night (9PM-3AM), Morning Thoughts (5AM-9AM), Corporate (12PM-5PM), and more.",
-      color: "text-orange-500",
-      bgColor: "bg-orange-500/10"
-    },
-    {
       icon: Zap,
-      title: "Instant Real-Time",
-      description: "Experience zero-delay messaging with live user counts. Every message delivered instantly.",
+      title: "Real-Time Messaging",
+      description: "Instant message delivery with WebSocket technology for seamless communication.",
       color: "text-yellow-500",
       bgColor: "bg-yellow-500/10"
-    },
-    {
-      icon: Users,
-      title: "Create Custom Rooms",
-      description: "Build your own spaces with unique titles. Quality-controlled with a 2-room limit per area.",
-      color: "text-pink-500",
-      bgColor: "bg-pink-500/10"
     }
   ];
 
   const systemRooms = [
-    { name: "Confession Room", expiry: "24h", description: "Say what you never said out loud (4-9 PM)", icon: MessageCircle, color: "text-purple-500" },
-    { name: "City Talk", expiry: "24h", description: "Talk about your city (9 AM-4 PM)", icon: MapPin, color: "text-blue-500" },
-    { name: "Campus Life", expiry: "24h", description: "College chaos & stories", icon: Users, color: "text-green-500" },
-    { name: "Exam Hub", expiry: "12h", description: "Exam anxiety & reactions", icon: Clock, color: "text-orange-500" },
-    { name: "After Hours", expiry: "6h", description: "Deep talks (9 PM-3 AM)", icon: Moon, color: "text-indigo-500" },
-    { name: "Morning Pulse", expiry: "6h", description: "Morning vibes (5-9 AM)", icon: Sun, color: "text-yellow-500" },
-    { name: "Live Sports Arena", expiry: "8h", description: "Live sports reactions (8 PM-12 AM)", icon: Activity, color: "text-red-500" },
-    { name: "Work & Career", expiry: "24h", description: "Office life & career talks (12-5 PM)", icon: Briefcase, color: "text-cyan-500" }
+    { name: "Confession Room", description: "Anonymous confessions and thoughts", icon: MessageCircle, color: "text-purple-500" },
+    { name: "City Talk", description: "Discuss local events and city life", icon: MapPin, color: "text-blue-500" },
+    { name: "Campus Life", description: "Student discussions and experiences", icon: Users, color: "text-green-500" },
+    { name: "After Hours", description: "Late night conversations", icon: Moon, color: "text-indigo-500" },
+    { name: "Morning Chat", description: "Start your day with morning talks", icon: Sun, color: "text-yellow-500" },
+    { name: "Sports Zone", description: "Sports discussions and live reactions", icon: Activity, color: "text-red-500" },
+    { name: "Work & Career", description: "Professional networking and advice", icon: Briefcase, color: "text-cyan-500" }
   ];
 
-  // Chart data for engagement visualization
-  const weeklyEngagement = [
-    { day: "Mon", conversations: 142 },
-    { day: "Tue", conversations: 198 },
-    { day: "Wed", conversations: 235 },
-    { day: "Thu", conversations: 189 },
-    { day: "Fri", conversations: 312 },
-    { day: "Sat", conversations: 278 },
-    { day: "Sun", conversations: 245 },
-  ];
 
-  const roomPopularity = [
-    { room: "Confession", engagement: 89 },
-    { room: "City Talk", engagement: 76 },
-    { room: "Hostel", engagement: 92 },
-    { room: "Exam Room", engagement: 68 },
-    { room: "Late Night", engagement: 85 },
-  ];
 
   return (
     <>
@@ -196,8 +152,7 @@ export default function Home() {
             </h1>
             
             <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed px-4">
-              Connect with people around you through anonymous, themed chat rooms. 
-              Express yourself freely in real-time conversations.
+              A location-based anonymous chat platform connecting people within your proximity through themed conversation rooms.
             </p>
 
             <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 justify-center items-stretch sm:items-center pt-4 px-4">
@@ -388,223 +343,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Engagement Analytics Section */}
-      <section className="container mx-auto px-4 py-8 sm:py-12 md:py-16 lg:py-20 bg-muted/30 -mx-4">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          viewport={{ once: true }}
-          className="text-center space-y-2 sm:space-y-3 md:space-y-4 mb-6 sm:mb-8 md:mb-12 lg:mb-16 px-4"
-        >
-          <Badge variant="secondary" className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm">
-            <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 inline" />
-            Platform Engagement
-          </Badge>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold">Conversations That Matter</h2>
-          <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            See how Radius brings people together through meaningful, real-time interactions
-          </p>
-        </motion.div>
 
-        <div ref={chartRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 max-w-6xl mx-auto px-4">
-          {/* Weekly Conversations Chart */}
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            animate={chartInView ? { opacity: 1, x: 0 } : {}}
-            transition={{ duration: 0.5 }}
-            className="w-full"
-          >
-            <Card className="border-2 overflow-hidden">
-              <CardHeader className="pb-2 sm:pb-4">
-                <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg md:text-xl">
-                  <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                  <span className="truncate">Weekly Activity</span>
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Conversations started across all rooms</CardDescription>
-              </CardHeader>
-              <CardContent className="px-2 sm:px-4 md:px-6 pb-2 sm:pb-4 md:pb-6">
-                <ChartContainer
-                  config={{
-                    conversations: {
-                      label: "Conversations",
-                      color: "hsl(var(--primary))",
-                    },
-                  }}
-                  className="h-[200px] sm:h-[240px] md:h-[280px]"
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={weeklyEngagement}>
-                      <defs>
-                        <linearGradient id="colorConversations" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" opacity={0.3} />
-                      <XAxis 
-                        dataKey="day" 
-                        className="text-[10px] sm:text-xs" 
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                        height={30}
-                      />
-                      <YAxis 
-                        className="text-[10px] sm:text-xs"
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                        width={30}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Area 
-                        type="monotone" 
-                        dataKey="conversations" 
-                        stroke="hsl(var(--primary))" 
-                        fillOpacity={1} 
-                        fill="url(#colorConversations)"
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Room Popularity Chart */}
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={chartInView ? { opacity: 1, x: 0 } : {}}
-            transition={{ duration: 0.5 }}
-            className="w-full"
-          >
-            <Card className="border-2 overflow-hidden">
-              <CardHeader className="pb-2 sm:pb-4">
-                <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg md:text-xl">
-                  <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                  <span className="truncate">Room Engagement</span>
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Most active conversation spaces</CardDescription>
-              </CardHeader>
-              <CardContent className="px-2 sm:px-4 md:px-6 pb-2 sm:pb-4 md:pb-6">
-                <ChartContainer
-                  config={{
-                    engagement: {
-                      label: "Engagement Score",
-                      color: "hsl(var(--primary))",
-                    },
-                  }}
-                  className="h-[200px] sm:h-[240px] md:h-[280px]"
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={roomPopularity}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" opacity={0.3} />
-                      <XAxis 
-                        dataKey="room" 
-                        className="text-[10px] sm:text-xs"
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                        height={30}
-                        angle={-45}
-                        textAnchor="end"
-                      />
-                      <YAxis 
-                        className="text-[10px] sm:text-xs"
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                        width={30}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar 
-                        dataKey="engagement" 
-                        fill="hsl(var(--primary))" 
-                        radius={[8, 8, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Engagement Highlights */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 max-w-4xl mx-auto mt-4 sm:mt-6 md:mt-8 px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            viewport={{ once: true }}
-          >
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-4 sm:pt-6">
-                <div className="text-center space-y-1.5 sm:space-y-2">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    whileInView={{ scale: 1 }}
-                    transition={{ duration: 0.3, type: "spring", stiffness: 200 }}
-                    viewport={{ once: true }}
-                  >
-                    <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 mx-auto text-primary mb-2 sm:mb-3" />
-                  </motion.div>
-                  <div ref={dailyMessages.ref} className="text-2xl sm:text-3xl font-bold">
-                    {dailyMessages.count.toLocaleString()}+
-                  </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Daily Messages</div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            viewport={{ once: true }}
-          >
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-4 sm:pt-6">
-                <div className="text-center space-y-1.5 sm:space-y-2">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    whileInView={{ scale: 1 }}
-                    transition={{ duration: 0.3, type: "spring", stiffness: 200 }}
-                    viewport={{ once: true }}
-                  >
-                    <Users className="w-6 h-6 sm:w-8 sm:h-8 mx-auto text-primary mb-2 sm:mb-3" />
-                  </motion.div>
-                  <div ref={activeConversations.ref} className="text-2xl sm:text-3xl font-bold">
-                    {activeConversations.count.toLocaleString()}+
-                  </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Active Conversations</div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            viewport={{ once: true }}
-          >
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-4 sm:pt-6">
-                <div className="text-center space-y-1.5 sm:space-y-2">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    whileInView={{ scale: 1 }}
-                    transition={{ duration: 0.3, type: "spring", stiffness: 200 }}
-                    viewport={{ once: true }}
-                  >
-                    <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 mx-auto text-primary mb-2 sm:mb-3" />
-                  </motion.div>
-                  <div ref={themedRooms.ref} className="text-2xl sm:text-3xl font-bold">
-                    {themedRooms.count}
-                  </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Themed Rooms</div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </section>
 
       {/* System Rooms Section */}
       <section className="container mx-auto px-4 py-8 sm:py-12 md:py-16 lg:py-20">
@@ -613,9 +352,9 @@ export default function Home() {
             <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 inline" />
             System Rooms
           </Badge>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold px-4">Themed Chat Rooms</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold px-4">Available Room Types</h2>
           <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto px-4">
-            Seven unique spaces that automatically appear in your area, each with its own vibe
+            Join conversations in themed rooms that match your interests and context
           </p>
         </div>
 
@@ -692,8 +431,7 @@ export default function Home() {
             <Badge variant="secondary" className="mx-auto text-xs sm:text-sm">Join The Conversation</Badge>
             <CardTitle className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl">Ready to Connect?</CardTitle>
             <CardDescription className="text-sm sm:text-base md:text-lg lg:text-xl max-w-2xl mx-auto leading-relaxed">
-              Experience authentic conversations with people nearby. 
-              Anonymous, safe, and always interesting. Start chatting in seconds.
+              Start connecting with people nearby through anonymous, location-based conversations.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pb-4 sm:pb-6 md:pb-8">
@@ -746,8 +484,7 @@ export default function Home() {
                 Radius
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Location-based real-time chat platform. Connect with people around you through 
-                anonymous, themed conversations that matter.
+                A proximity-based anonymous chat platform for real-time conversations with people nearby.
               </p>
             </div>
 
@@ -821,6 +558,23 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Floating Stats Button */}
+      <motion.div 
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 1, duration: 0.5 }}
+        className="fixed bottom-6 right-6 z-50"
+      >
+        <Button
+          onClick={() => router.push('/stats')}
+          size="lg"
+          className="rounded-full shadow-2xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-2 border-white/20 backdrop-blur-sm group"
+        >
+          <BarChart3 className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+          <span className="font-semibold">Live Stats</span>
+        </Button>
+      </motion.div>
       </div>
     </>
   );

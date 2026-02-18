@@ -13,20 +13,23 @@ interface WaitingForUsersProps {
 
 export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUsersProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [timeLeft, setTimeLeft] = useState(230); // 3:50 in seconds
+  // Music starts at 1:44 (104 seconds) and plays till end (230 seconds total)
+  // So duration = 230 - 104 = 126 seconds (2:06)
+  const [timeLeft, setTimeLeft] = useState(126); // 2:06 in seconds
   const [isWarning, setIsWarning] = useState(false);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Set volume and try to play
+    // Set volume and start time at 1:44 (104 seconds)
     audio.volume = 0.3;
+    audio.currentTime = 104; // Start at 1:44
     
     const playAudio = async () => {
       try {
         await audio.play();
-        console.log("Background music started");
+        console.log("Background music started at 1:44");
       } catch (error) {
         console.log("Audio autoplay prevented:", error);
       }
@@ -89,8 +92,8 @@ export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUse
 
   return (
     <>
-      {/* Hidden audio element */}
-      <audio ref={audioRef} loop preload="auto">
+      {/* Hidden audio element - no loop, will end when music ends */}
+      <audio ref={audioRef} preload="auto">
         <source src="/TwitterBG.mpeg" type="audio/mpeg" />
       </audio>
 

@@ -76,8 +76,15 @@ class RoomsApiService {
       `${this.baseUrl}${API_CONFIG.ENDPOINTS.ROOM_DETAILS(roomId)}`
     );
     if (!response.ok) {
-      const error: ApiError = await response.json();
-      throw new Error(error.message || 'Failed to get room details');
+      let errorMessage = 'Failed to get room details';
+      try {
+        const error: ApiError = await response.json();
+        errorMessage = error.message || errorMessage;
+      } catch (e) {
+        // If response is not JSON, use status text
+        errorMessage = `${errorMessage}: ${response.statusText || response.status}`;
+      }
+      throw new Error(errorMessage);
     }
     return response.json();
   }

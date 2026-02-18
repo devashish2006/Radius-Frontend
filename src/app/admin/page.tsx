@@ -225,10 +225,22 @@ export default function AdminPanelPage() {
                 System monitoring and user management
               </p>
             </div>
-            <Badge variant="outline" className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 border-purple-500/30 text-purple-400 flex-shrink-0">
-              <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Super </span>Admin
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push('/stats')}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Public Stats</span>
+                <span className="sm:hidden">Stats</span>
+              </Button>
+              <Badge variant="outline" className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 border-purple-500/30 text-purple-400 flex-shrink-0">
+                <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Super </span>Admin
+              </Badge>
+            </div>
           </div>
         </div>
       </div>

@@ -5,13 +5,15 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Ban, ShieldAlert, AlertTriangle, ArrowLeft, Mail } from 'lucide-react';
+import { Ban, ShieldAlert, AlertTriangle, ArrowLeft, Mail, Clock } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
 function BannedPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [reason, setReason] = useState<string>('');
+  const [bannedAt, setBannedAt] = useState<Date | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
 
   useEffect(() => {
     const banReason = searchParams.get('reason');
@@ -20,7 +22,41 @@ function BannedPageContent() {
     } else {
       setReason('Your account has been suspended for violating our community guidelines.');
     }
+
+    // Set the ban time (we'll estimate it as now if not provided)
+    const banTime = searchParams.get('bannedAt');
+    if (banTime) {
+      setBannedAt(new Date(banTime));
+    } else {
+      setBannedAt(new Date());
+    }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!bannedAt) return;
+
+    const calculateTimeRemaining = () => {
+      const now = new Date().getTime();
+      const unbanTime = bannedAt.getTime() + (24 * 60 * 60 * 1000); // 24 hours from ban
+      const difference = unbanTime - now;
+
+      if (difference <= 0) {
+        setTimeRemaining("You can try logging in again now!");
+        return;
+      }
+
+      const hours = Math.floor(difference / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
+    };
+
+    calculateTimeRemaining();
+    const interval = setInterval(calculateTimeRemaining, 1000);
+
+    return () => clearInterval(interval);
+  }, [bannedAt]);
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -40,12 +76,33 @@ function BannedPageContent() {
                 Account Suspended
               </CardTitle>
               <CardDescription className="text-slate-400 text-base">
-                Your access to ChugLi has been restricted
+                Your access to Radius has been restricted
               </CardDescription>
             </div>
           </CardHeader>
           
           <CardContent className="space-y-6">
+            {/* 24-Hour Automatic Unban Timer */}
+            <div className="bg-blue-500/10 border-2 border-blue-500/30 rounded-lg p-6">
+              <div className="flex items-start gap-3 mb-3">
+                <Clock className="h-6 w-6 text-blue-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-blue-300 mb-2 text-lg">Automatic Unban Timer</h3>
+                  <p className="text-slate-300 text-sm mb-3">
+                    Your account will be automatically unbanned in:
+                  </p>
+                  <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+                    <p className="text-3xl font-bold text-blue-400 mb-1">
+                      {timeRemaining || "Calculating..."}
+                    </p>
+                    <p className="text-slate-400 text-xs">
+                      After 24 hours from the time of ban, you&apos;ll regain full access
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Ban Reason */}
             <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-6">
               <div className="flex items-start gap-3 mb-3">
@@ -64,7 +121,7 @@ function BannedPageContent() {
                 <div className="flex-1 space-y-3">
                   <h3 className="font-semibold text-white">Community Guidelines</h3>
                   <p className="text-slate-400 text-sm leading-relaxed">
-                    ChugLi is committed to maintaining a safe and respectful environment for all users. 
+                    Radius is committed to maintaining a safe and respectful environment for all users. 
                     Violations include but are not limited to:
                   </p>
                   <ul className="space-y-2 text-sm text-slate-400">
@@ -104,11 +161,11 @@ function BannedPageContent() {
                     please contact our support team:
                   </p>
                   <a 
-                    href="mailto:support@chugli.com" 
+                    href="mailto:support@radius.chat" 
                     className="text-blue-400 hover:text-blue-300 text-sm font-medium inline-flex items-center gap-2"
                   >
                     <Mail className="h-4 w-4" />
-                    support@chugli.com
+                    support@radius.chat
                   </a>
                 </div>
               </div>
@@ -118,8 +175,9 @@ function BannedPageContent() {
             <div className="flex items-start gap-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg">
               <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-slate-400 leading-relaxed">
-                <span className="font-medium text-amber-400">Important:</span> Attempting to create new accounts 
-                to bypass this suspension may result in permanent bans and further action.
+                <span className="font-medium text-amber-400">Important:</span> Bans are temporary and last for 24 hours. 
+                Repeated violations may result in permanent suspension. Attempting to create new accounts 
+                to bypass this suspension will result in further action.
               </p>
             </div>
 
@@ -134,7 +192,7 @@ function BannedPageContent() {
                 Return to Home
               </Button>
               <Button
-                onClick={() => window.open('mailto:support@chugli.com', '_blank')}
+                onClick={() => window.open('mailto:support@radius.chat', '_blank')}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Mail className="h-4 w-4 mr-2" />

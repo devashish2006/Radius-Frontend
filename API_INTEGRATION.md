@@ -8,7 +8,7 @@ The frontend is now fully integrated with the real backend APIs.
 
 1. **Backend Server Must Be Running**
    ```bash
-   cd chugli-backend
+   cd radius-backend
    npm run start:dev
    ```
    Backend should be running on `http://localhost:4000`
@@ -62,7 +62,7 @@ The frontend is now fully integrated with the real backend APIs.
 
 1. **Start Backend**
    ```bash
-   cd ../chugli-backend
+   cd ../radius-backend
    npm run start:dev
    ```
 
