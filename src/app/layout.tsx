@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Radius - Location-Based Real-Time Chat",
+  title: "Redius - Location-Based Real-Time Chat",
   description: "Connect with people around you through themed rooms. Anonymous, real-time, and completely free.",
 };
 

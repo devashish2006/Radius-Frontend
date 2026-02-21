@@ -2,20 +2,41 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Sparkles, Clock, AlertTriangle } from "lucide-react";
+import { Users, Sparkles, Clock, AlertTriangle, Share2, ArrowLeft, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface WaitingForUsersProps {
   roomName?: string;
   roomType?: string;
   onTimeout?: () => void;
+  onLeave?: () => void;
+  roomId?: string;
+  roomUrl?: string;
 }
 
-export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUsersProps) {
+export function WaitingForUsers({ roomName, roomType, onTimeout, onLeave, roomId, roomUrl }: WaitingForUsersProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
   // Music starts at 1:44 (104 seconds) and plays till end (230 seconds total)
   // So duration = 230 - 104 = 126 seconds (2:06)
-  const [timeLeft, setTimeLeft] = useState(126); // 2:06 in seconds
+  
+  // Initialize from localStorage if available (for background continuation)
+  const getInitialTime = () => {
+    if (typeof window !== 'undefined' && roomId) {
+      const stored = localStorage.getItem(`redius_lobby_timer_${roomId}`);
+      if (stored) {
+        const { timeLeft: storedTime, timestamp } = JSON.parse(stored);
+        const elapsed = Math.floor((Date.now() - timestamp) / 1000);
+        const remaining = Math.max(0, storedTime - elapsed);
+        return remaining;
+      }
+    }
+    return 126; // 2:06 in seconds
+  };
+  
+  const [timeLeft, setTimeLeft] = useState(getInitialTime);
   const [isWarning, setIsWarning] = useState(false);
 
   useEffect(() => {
@@ -29,9 +50,9 @@ export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUse
     const playAudio = async () => {
       try {
         await audio.play();
-        console.log("Background music started at 1:44");
+
       } catch (error) {
-        console.log("Audio autoplay prevented:", error);
+
       }
     };
 
@@ -46,12 +67,16 @@ export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUse
     };
   }, []);
 
-  // Countdown timer
+  // Countdown timer with localStorage persistence
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          // Clear localStorage when timer expires
+          if (typeof window !== 'undefined' && roomId) {
+            localStorage.removeItem(`redius_lobby_timer_${roomId}`);
+          }
           return 0;
         }
         
@@ -60,12 +85,22 @@ export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUse
           setIsWarning(true);
         }
         
-        return prev - 1;
+        const newTime = prev - 1;
+        
+        // Persist to localStorage for background continuation
+        if (typeof window !== 'undefined' && roomId) {
+          localStorage.setItem(`redius_lobby_timer_${roomId}`, JSON.stringify({
+            timeLeft: newTime,
+            timestamp: Date.now()
+          }));
+        }
+        
+        return newTime;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [roomId]);
 
   // Handle timeout when timer reaches 0
   useEffect(() => {
@@ -76,12 +111,63 @@ export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUse
         audioRef.current.currentTime = 0;
       }
       
+      // Clear localStorage
+      if (typeof window !== 'undefined' && roomId) {
+        localStorage.removeItem(`redius_lobby_timer_${roomId}`);
+      }
+      
       // Trigger timeout callback
       if (onTimeout) {
         onTimeout();
       }
     }
-  }, [timeLeft, onTimeout]);
+  }, [timeLeft, onTimeout, roomId]);
+
+  // Cleanup localStorage on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && roomId) {
+        localStorage.removeItem(`redius_lobby_timer_${roomId}`);
+      }
+    };
+  }, [roomId]);
+
+  const handleShare = () => {
+    if (!roomUrl) return;
+    
+    const message = `🎯 Join me on Redius!\n\n📍 Room: ${roomName || 'Chat Room'}\n💬 Anonymous chat nearby\n\n🔗 Click to join: ${roomUrl}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+    toast.success('Opening WhatsApp...', {
+      description: 'Share this room with friends!',
+      duration: 2000,
+    });
+  };
+
+  const handleLeave = () => {
+    setIsLeaving(true);
+    
+    // Stop the music
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    
+    // Clear localStorage
+    if (typeof window !== 'undefined' && roomId) {
+      localStorage.removeItem(`redius_lobby_timer_${roomId}`);
+    }
+    
+    toast.info('Leaving room...', {
+      description: 'Taking you back to the rooms page',
+      duration: 2000,
+    });
+    
+    // Trigger leave callback
+    if (onLeave) {
+      onLeave();
+    }
+  };
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
@@ -207,6 +293,39 @@ export function WaitingForUsers({ roomName, roomType, onTimeout }: WaitingForUse
                   : "Share this room with friends to start chatting"
                 }
               </p>
+
+              {/* Action Buttons */}
+              {roomUrl && (
+                <div className="pt-2 space-y-2">
+                  <Button
+                    onClick={handleShare}
+                    variant="outline"
+                    className={`w-full gap-2 ${isWarning ? 'border-destructive/50 hover:bg-destructive/10' : 'border-primary/50 hover:bg-primary/10'}`}
+                    disabled={isLeaving}
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Share Room via WhatsApp
+                  </Button>
+                  <Button
+                    onClick={handleLeave}
+                    variant="ghost"
+                    className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                    disabled={isLeaving}
+                  >
+                    {isLeaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Leaving...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowLeft className="w-4 h-4" />
+                        Leave Room
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

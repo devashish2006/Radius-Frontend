@@ -27,6 +27,21 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!response.ok) {
+            // Handle banned user
+            if (response.status === 403) {
+              try {
+                const errorData = await response.json();
+                if (errorData.banned) {
+                  // Store ban info in account for redirection
+                  (account as any).banned = true;
+                  (account as any).banReason = errorData.banReason;
+                  (account as any).bannedAt = errorData.bannedAt;
+                  return `/banned?reason=${encodeURIComponent(errorData.banReason || 'Account suspended')}&bannedAt=${encodeURIComponent(errorData.bannedAt || new Date().toISOString())}`;
+                }
+              } catch (e) {
+                console.error("Error parsing ban response:", e);
+              }
+            }
             const errorText = await response.text();
             console.error("Backend validation failed:", response.status, errorText);
             return false;

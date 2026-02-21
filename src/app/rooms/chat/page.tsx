@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/tooltip";
 import { wsService } from "@/lib/websocket-service";
 import { roomsApi } from "@/lib/api-service";
-import { initializeUser } from "@/lib/user-utils";
+import { initializeUser, getUserLocation, calculateDistance } from "@/lib/user-utils";
 import { toast } from "sonner";
 import { CountdownTimer } from "@/components/countdown-timer";
 import { useSession } from "next-auth/react";
@@ -74,12 +74,21 @@ function ChatRoomPageContent() {
 
     // Wait for session to be loaded
     if (status === "loading") {
-      console.log("⏳ Waiting for session to load...");
+
       return;
     }
 
     if (status === "unauthenticated") {
-      console.log("❌ Not authenticated, redirecting to home");
+
+      // Store the intended room URL in sessionStorage for redirect after login
+      if (typeof window !== 'undefined') {
+        const currentUrl = window.location.href;
+        sessionStorage.setItem('redius_redirect_after_login', currentUrl);
+      }
+      toast.error("Please login first", {
+        description: "You need to be logged in to join this room",
+        duration: 3000,
+      });
       router.push("/");
       return;
     }
@@ -119,8 +128,6 @@ function ChatRoomPageContent() {
       // Load room details
       const details = await roomsApi.getRoomDetails(roomId);
       
-      console.log('📋 Room details loaded:', JSON.stringify(details, null, 2));
-      
       if (!details) {
         setError("This room is no longer available or has expired");
         toast.error("Room unavailable", {
@@ -128,6 +135,35 @@ function ChatRoomPageContent() {
         });
         setTimeout(() => router.push("/rooms"), 2000);
         return;
+      }
+
+      // Check if user is within radius of the room (5km)
+      if (details.latitude && details.longitude) {
+        try {
+          const userLocation = await getUserLocation();
+          if (userLocation) {
+            const distance = calculateDistance(
+              userLocation.lat,
+              userLocation.lng,
+              details.latitude,
+              details.longitude
+            );
+
+            // If user is more than 5km away, show error
+            if (distance > 5) {
+              setError(`You are ${distance}km away from this room`);
+              toast.error("Too far from room", {
+                description: `You must be within 5km of the room to join. You are ${distance}km away.`,
+                duration: 5000,
+              });
+              setTimeout(() => router.push("/rooms"), 3000);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error("Error checking user location:", err);
+          // Continue even if location check fails
+        }
       }
       
       setRoomDetails(details);
@@ -160,7 +196,6 @@ function ChatRoomPageContent() {
         return;
       }
 
-      console.log('🔐 Connecting with token...');
       const socket = wsService.connect(token);
 
       // Set up ALL event listeners BEFORE joining the room
@@ -168,14 +203,14 @@ function ChatRoomPageContent() {
       
       // Listen for connection events
       wsService.onConnect(() => {
-        console.log('✅ Connected, joining room:', roomId);
+
         setConnected(true);
         setError(null);
         wsService.joinRoom({ roomId });
       });
 
       wsService.onDisconnect((reason) => {
-        console.log('❌ Disconnected:', reason);
+
         setConnected(false);
         if (reason !== 'io client disconnect') {
           toast.warning("Connection Lost", {
@@ -186,7 +221,7 @@ function ChatRoomPageContent() {
       });
 
       wsService.onReconnect(() => {
-        console.log('🔄 Reconnected successfully');
+
         setConnected(true);
         toast.success("Reconnected", {
           description: "You're back online!",
@@ -206,7 +241,7 @@ function ChatRoomPageContent() {
 
       // Listen for messages
       wsService.onMessage((data) => {
-        console.log('📨 Received message:', data);
+
         setMessages((prev) => [
           ...prev,
           {
@@ -219,7 +254,7 @@ function ChatRoomPageContent() {
 
       // Listen for user count updates
       wsService.onUserCount((count) => {
-        console.log('👥 User count updated:', count);
+
         setActiveUsers(count);
         
         // Check if user is now the last one in a user room
@@ -232,7 +267,7 @@ function ChatRoomPageContent() {
 
       // Listen for user joined events
       wsService.onUserJoined((data) => {
-        console.log('👋 User joined:', data.username);
+
         // Show toast notification for other users joining
         toast.info(`${data.username} joined the room`, {
           duration: 2000,
@@ -241,7 +276,7 @@ function ChatRoomPageContent() {
 
       // Listen for user left events
       wsService.onUserLeft((data) => {
-        console.log('👋 User left:', data.username);
+
         // Show toast notification for users leaving
         toast.error(`${data.username} left the room`, {
           duration: 2000,
@@ -273,7 +308,7 @@ function ChatRoomPageContent() {
 
       // Listen for room closing notification
       wsService.onRoomClosing((data) => {
-        console.log('🚪 Room closing:', data.message);
+
         toast.error("Room Closed", {
           description: data.message,
           duration: 2000,
@@ -287,7 +322,7 @@ function ChatRoomPageContent() {
 
       // Listen for room expired notification (auto-deleted after 2 hours)
       wsService.onRoomExpired((data) => {
-        console.log('⏰ Room expired:', data.message);
+
         toast.error("Room Expired", {
           description: data.message,
           duration: 3000,
@@ -301,7 +336,7 @@ function ChatRoomPageContent() {
 
       // Listen for last user warning
       wsService.onLastUserWarning((data) => {
-        console.log('⚠️ Last user warning:', data.message);
+
         setIsLastUser(true);
         toast.warning("Last User", {
           description: data.message,
@@ -311,7 +346,7 @@ function ChatRoomPageContent() {
 
       // Listen for message blocked notifications (content moderation)
       wsService.onMessageBlocked((data) => {
-        console.log('🚫 Message blocked:', data.message);
+
         toast.error("Message Blocked", {
           description: data.message,
           duration: 3000,
@@ -320,7 +355,7 @@ function ChatRoomPageContent() {
 
       // If already connected, join immediately
       if (socket.connected) {
-        console.log('✅ Already connected, joining room immediately:', roomId);
+
         setConnected(true);
         wsService.joinRoom({ roomId });
       }
@@ -329,18 +364,40 @@ function ChatRoomPageContent() {
     } catch (err) {
       console.error("Error loading room:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to load room";
+      const errorType = (err as any)?.type;
       
-      // Check if it's a room not found error
-      if (errorMessage.includes("not found") || errorMessage.includes("expired")) {
-        setError("This room is no longer available or has expired");
-        toast.error("Room unavailable", {
-          description: "This room has expired. Redirecting to rooms page...",
+      // Handle specific error types
+      if (errorType === 'ROOM_NOT_FOUND' || 
+          errorMessage.includes("not found") || 
+          errorMessage.includes("expired")) {
+        setError("This room is no longer available");
+        toast.error("Room Not Found", {
+          description: "This room has expired or been deleted. Redirecting...",
+          duration: 3000,
         });
+        
+        // Disconnect WebSocket if connected
+        try {
+          wsService.removeAllListeners();
+          wsService.disconnect();
+        } catch (e) {
+          console.error("Error disconnecting:", e);
+        }
+        
+        // Redirect after a short delay
         setTimeout(() => router.push("/rooms"), 2000);
+      } else if (errorMessage.includes("Authentication")) {
+        setError("Authentication failed");
+        toast.error("Authentication Error", {
+          description: "Please sign in again to continue.",
+          duration: 3000,
+        });
+        setTimeout(() => router.push("/"), 2000);
       } else {
         setError(errorMessage);
-        toast.error("Failed to connect to room", {
-          description: errorMessage,
+        toast.error("Connection Failed", {
+          description: errorMessage || "Unable to connect to room. Please try again.",
+          duration: 4000,
         });
       }
       
@@ -392,10 +449,9 @@ function ChatRoomPageContent() {
   };
 
   const handleWaitingTimeout = async () => {
-    console.log("⏰ Waiting timeout reached, closing room...");
-    
+
     toast.error("Room Closed", {
-      description: "No one joined in time. Redirecting to rooms page...",
+      description: "No one joined in time. Taking you back to the rooms page...",
       duration: 3000,
     });
 
@@ -413,7 +469,7 @@ function ChatRoomPageContent() {
       if (roomId && roomDetails?.isUserRoom) {
         try {
           await roomsApi.deleteRoom(roomId);
-          console.log("✅ Room deleted successfully");
+
         } catch (err) {
           console.error("Error deleting room:", err);
           // Continue with redirect even if deletion fails
@@ -426,7 +482,37 @@ function ChatRoomPageContent() {
     // Redirect after a short delay
     setTimeout(() => {
       router.push("/rooms");
-    }, 1000);
+    }, 1500);
+  };
+
+  const handleManualLeave = async () => {
+
+    try {
+      // Leave the room gracefully
+      if (userDataRef.current && roomIdRef.current) {
+        wsService.leaveRoom(roomIdRef.current, userDataRef.current.userId);
+      }
+      
+      // Disconnect WebSocket
+      wsService.removeAllListeners();
+      wsService.disconnect();
+
+      // Delete the room if it's a user room
+      if (roomId && roomDetails?.isUserRoom) {
+        try {
+          await roomsApi.deleteRoom(roomId);
+
+        } catch (err) {
+          console.error("Error deleting room:", err);
+          // Continue with redirect even if deletion fails
+        }
+      }
+    } catch (err) {
+      console.error("Error during manual leave cleanup:", err);
+    }
+
+    // Redirect immediately
+    router.push("/rooms");
   };
 
   const formatTimestamp = (timestamp: Date | string) => {
@@ -465,24 +551,40 @@ function ChatRoomPageContent() {
   }
 
   if (error) {
+    const isRoomNotFound = error.includes("no longer available") || error.includes("expired") || error.includes("not found");
+    const isAuthError = error.includes("Authentication");
+    
     return (
       <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20 flex items-center justify-center">
         <Card className="max-w-md">
           <CardHeader>
             <div className="flex items-center gap-2 text-destructive">
               <AlertCircle className="w-5 h-5" />
-              <CardTitle>Connection Error</CardTitle>
+              <CardTitle>
+                {isRoomNotFound ? "Room Not Found" : isAuthError ? "Authentication Error" : "Connection Error"}
+              </CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">{error}</p>
+            {isRoomNotFound && (
+              <p className="text-sm text-muted-foreground/80">
+                This room may have expired after 2 hours of inactivity or was deleted by its creator.
+              </p>
+            )}
             <div className="flex gap-2">
-              <Button onClick={() => router.push("/rooms")} variant="outline" className="flex-1">
-                Back to Rooms
+              <Button 
+                onClick={() => router.push(isAuthError ? "/" : "/rooms")} 
+                variant="outline" 
+                className="flex-1"
+              >
+                {isAuthError ? "Sign In" : "Back to Rooms"}
               </Button>
-              <Button onClick={() => window.location.reload()} className="flex-1">
-                Retry
-              </Button>
+              {!isRoomNotFound && !isAuthError && (
+                <Button onClick={() => window.location.reload()} className="flex-1">
+                  Retry
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -490,14 +592,17 @@ function ChatRoomPageContent() {
     );
   }
 
-  // Show waiting screen when user is alone in the room
-  if (activeUsers === 1 && connected) {
+  // Show waiting screen when there are less than 2 users in the room
+  if (activeUsers < 2 && connected) {
     return (
       <div className="h-screen bg-gradient-to-b from-background via-background to-muted/20 flex flex-col">
         <WaitingForUsers 
           roomName={roomName || roomDetails?.name} 
           roomType={roomType ?? undefined}
           onTimeout={handleWaitingTimeout}
+          onLeave={handleManualLeave}
+          roomId={roomId || ''}
+          roomUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/rooms/chat?id=${roomId}&name=${encodeURIComponent(roomName || 'Chat Room')}&type=${roomType || 'chat'}`}
         />
       </div>
     );
@@ -546,7 +651,7 @@ function ChatRoomPageContent() {
                       className="h-8 w-8 sm:h-9 sm:w-9"
                       onClick={() => {
                         const roomUrl = `${window.location.origin}/rooms/chat?id=${roomId}&name=${encodeURIComponent(roomName || 'Chat Room')}&type=${roomType || 'chat'}`;
-                        const message = `🎯 Join me on Radius!\n\n📍 Room: ${roomName || 'Chat Room'}\n💬 Anonymous chat nearby\n\n🔗 Click to join: ${roomUrl}`;
+                        const message = `🎯 Join me on Redius!\n\n📍 Room: ${roomName || 'Chat Room'}\n💬 Anonymous chat nearby\n\n🔗 Click to join: ${roomUrl}`;
                         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
                         window.open(whatsappUrl, '_blank');
                         toast.success('Opening WhatsApp...');

@@ -57,6 +57,12 @@ import {
   Search,
   ArrowUpRight,
   Zap,
+  Calendar,
+  Hash,
+  BarChart3,
+  Timer,
+  Target,
+  Radio,
 } from 'lucide-react';
 import { 
   analyticsApi, 
@@ -67,6 +73,8 @@ import {
   type UserListResponse,
   type BannedUser,
   type RecentMessage,
+  type UserDetails,
+  type OnlineUser,
 } from '@/lib/analytics-service';
 import { PageLoader } from '@/components/page-loader';
 import { toast } from 'sonner';
@@ -86,9 +94,12 @@ export default function AdminPanelPage() {
   const [userList, setUserList] = useState<UserListResponse | null>(null);
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentMessage[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [selectedUserDetails, setSelectedUserDetails] = useState<UserDetails | null>(null);
   
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [userDetailsDialogOpen, setUserDetailsDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -128,6 +139,7 @@ export default function AdminPanelPage() {
         userListData,
         bannedUsersData,
         recentActivityData,
+        onlineUsersData,
       ] = await Promise.all([
         analyticsApi.getOverview(token),
         analyticsApi.getUserStats(token, 30),
@@ -136,6 +148,7 @@ export default function AdminPanelPage() {
         analyticsApi.getUserList(token, 1, 20),
         analyticsApi.getBannedUsers(token),
         analyticsApi.getRecentActivity(token, 50),
+        analyticsApi.getOnlineUsers(token),
       ]);
 
       setOverview(overviewData);
@@ -145,6 +158,7 @@ export default function AdminPanelPage() {
       setUserList(userListData);
       setBannedUsers(bannedUsersData);
       setRecentActivity(recentActivityData);
+      setOnlineUsers(onlineUsersData);
     } catch (err: any) {
       console.error('Failed to load analytics:', err);
       setError(err.message || 'Failed to load analytics data');
@@ -186,6 +200,32 @@ export default function AdminPanelPage() {
   const openBanDialog = (user: any) => {
     setSelectedUser(user);
     setBanDialogOpen(true);
+  };
+
+  const openUserDetailsDialog = async (userId: string) => {
+    try {
+      const token = (session as any)?.backendToken;
+      const details = await analyticsApi.getUserDetails(token, userId);
+      setSelectedUserDetails(details);
+      setUserDetailsDialogOpen(true);
+    } catch (err: any) {
+      toast.error('Failed to load user details: ' + err.message);
+    }
+  };
+
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  };
+
+  const getEngagementLevel = (score: number) => {
+    if (score >= 10) return { label: 'Very High', color: 'text-green-400 bg-green-500/10 border-green-500/20' };
+    if (score >= 5) return { label: 'High', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' };
+    if (score >= 2) return { label: 'Medium', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' };
+    if (score >= 1) return { label: 'Low', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' };
+    return { label: 'Very Low', color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' };
   };
 
   if (loading) {
@@ -247,7 +287,7 @@ export default function AdminPanelPage() {
 
       <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
           <Card className="border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3 sm:pt-4 md:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-slate-400">Total Users</CardTitle>
@@ -312,6 +352,23 @@ export default function AdminPanelPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 transition-all border-green-500/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3 sm:pt-4 md:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-slate-400">Online Users</CardTitle>
+              <Radio className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 animate-pulse" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{onlineUsers.length}</div>
+              <div className="flex items-center gap-1 sm:gap-2 mt-1.5 sm:mt-2">
+                <Badge variant="secondary" className="bg-green-500/10 text-green-400 border-green-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                  <Activity className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                  <span className="hidden xs:inline">Active now</span>
+                  <span className="xs:hidden">Now</span>
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Main Content Tabs */}
@@ -365,14 +422,17 @@ export default function AdminPanelPage() {
               </CardHeader>
               <CardContent className="p-0 sm:p-6">
                 <div className="border-0 sm:border border-slate-800 rounded-none sm:rounded-lg overflow-x-auto">
-                  <Table className="min-w-[800px]">
+                  <Table className="min-w-[1200px]">
                     <TableHeader>
                       <TableRow className="bg-slate-800/50 hover:bg-slate-800/50">
                         <TableHead className="text-slate-400 text-xs sm:text-sm">User</TableHead>
                         <TableHead className="text-slate-400 text-xs sm:text-sm">Email</TableHead>
                         <TableHead className="text-slate-400 text-xs sm:text-sm">Messages</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Logins</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Engagement</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Avg Session</TableHead>
                         <TableHead className="text-slate-400 text-xs sm:text-sm">Violations</TableHead>
-                        <TableHead className="text-slate-400 text-xs sm:text-sm">Last Login</TableHead>
+                        <TableHead className="text-slate-400 text-xs sm:text-sm">Last Seen</TableHead>
                         <TableHead className="text-slate-400 text-xs sm:text-sm">Status</TableHead>
                         <TableHead className="text-slate-400 text-xs sm:text-sm text-right">Actions</TableHead>
                       </TableRow>
@@ -385,19 +445,25 @@ export default function AdminPanelPage() {
                           user.email.toLowerCase().includes(searchQuery.toLowerCase())
                         )
                         .map((user) => (
-                        <TableRow key={user.id} className="border-slate-800 hover:bg-slate-800/30">
+                        <TableRow key={user.id} className="border-slate-800 hover:bg-slate-800/30 cursor-pointer" onClick={() => openUserDetailsDialog(user.id)}>
                           <TableCell className="py-2 sm:py-4">
                             <div className="flex items-center gap-2 sm:gap-3">
-                              <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border border-slate-700 sm:border-2">
+                              <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border border-slate-700 sm:border-2 relative">
                                 <AvatarImage src={user.avatarUrl} />
                                 <AvatarFallback className="bg-slate-800 text-white text-xs sm:text-sm">
                                   {user.name?.charAt(0) || 'U'}
                                 </AvatarFallback>
+                                {user.isOnline && (
+                                  <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-slate-900 rounded-full" />
+                                )}
                               </Avatar>
                               <div className="min-w-0">
-                                <div className="font-medium text-white text-xs sm:text-sm truncate">{user.name || 'Anonymous'}</div>
+                                <div className="font-medium text-white text-xs sm:text-sm truncate flex items-center gap-1">
+                                  {user.name || 'Anonymous'}
+                                  {user.isOnline && <Radio className="h-3 w-3 text-green-500 animate-pulse" />}
+                                </div>
                                 <div className="text-[10px] sm:text-xs text-slate-500">
-                                  {new Date(user.createdAt).toLocaleDateString()}
+                                  {user.daysSinceJoined} days ago
                                 </div>
                               </div>
                             </div>
@@ -407,6 +473,27 @@ export default function AdminPanelPage() {
                             <Badge variant="secondary" className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
                               {user.messageCount}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                              <Hash className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5" />
+                              {user.loginCount}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-[10px] sm:text-xs px-1.5 sm:px-2 ${getEngagementLevel(user.engagementScore).color}`}
+                            >
+                              <Target className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5" />
+                              {user.engagementScore.toFixed(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-slate-400 text-[10px] sm:text-xs">
+                              <Timer className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                              {formatDuration(user.averageSessionDuration || 0)}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge 
@@ -429,7 +516,14 @@ export default function AdminPanelPage() {
                           <TableCell className="text-slate-400 text-[10px] sm:text-xs">
                             <div className="flex items-center gap-1 sm:gap-2">
                               <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-                              <span className="truncate max-w-[100px]">{new Date(user.lastLogin).toLocaleDateString()}</span>
+                              <span className="truncate max-w-[100px]">
+                                {new Date(user.lastSeenAt).toLocaleString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -450,7 +544,10 @@ export default function AdminPanelPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => openBanDialog(user)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openBanDialog(user);
+                                }}
                                 className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
                               >
                                 <Ban className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
@@ -460,7 +557,10 @@ export default function AdminPanelPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleUnbanUser(user.id, user.name)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnbanUser(user.id, user.name);
+                                }}
                                 className="text-green-400 hover:text-green-300 hover:bg-green-500/10 h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
                               >
                                 <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
@@ -789,6 +889,192 @@ export default function AdminPanelPage() {
               Ban User
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Details Dialog */}
+      <Dialog open={userDetailsDialogOpen} onOpenChange={setUserDetailsDialogOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 w-[calc(100%-2rem)] sm:w-full max-w-4xl mx-auto max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2 text-base sm:text-lg md:text-xl">
+              <Eye className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 text-cyan-500" />
+              Detailed User Information
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs sm:text-sm">
+              Comprehensive behavioral analytics and activity history
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUserDetails && (
+            <div className="space-y-4 sm:space-y-6 py-3 sm:py-4">
+              {/* User Profile Card */}
+              <Card className="border-slate-800 bg-slate-800/30">
+                <CardContent className="pt-4 sm:pt-6">
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
+                    <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-cyan-500/30">
+                      <AvatarImage src={selectedUserDetails.user.avatarUrl} />
+                      <AvatarFallback className="bg-slate-800 text-white text-xl">
+                        {selectedUserDetails.user.name?.charAt(0) || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-lg sm:text-xl font-bold text-white">{selectedUserDetails.user.name}</h3>
+                        {selectedUserDetails.user.isOnline && (
+                          <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
+                            <Radio className="h-3 w-3 mr-1 animate-pulse" />
+                            Online
+                          </Badge>
+                        )}
+                        {selectedUserDetails.user.banned && (
+                          <Badge variant="destructive">Banned</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-400">{selectedUserDetails.user.email}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                        <div className="space-y-1">
+                          <div className="text-xs text-slate-500">Member Since</div>
+                          <div className="text-sm font-medium text-white">
+                            {new Date(selectedUserDetails.user.firstLoginDate).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-xs text-slate-500">Days Active</div>
+                          <div className="text-sm font-medium text-white">
+                            {selectedUserDetails.user.daysSinceJoined} days
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-xs text-slate-500">Last Seen</div>
+                          <div className="text-sm font-medium text-white">
+                            {new Date(selectedUserDetails.user.lastSeenAt).toLocaleString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-xs text-slate-500">Messages/Day</div>
+                          <div className="text-sm font-medium text-white">
+                            {selectedUserDetails.user.messagesPerDay.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <Card className="border-slate-800 bg-slate-800/30">
+                  <CardContent className="pt-4 p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MessageSquare className="h-4 w-4 text-purple-500" />
+                      <span className="text-xs text-slate-400">Total Messages</span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-bold text-white">
+                      {selectedUserDetails.stats.totalMessages}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-800 bg-slate-800/30">
+                  <CardContent className="pt-4 p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Hash className="h-4 w-4 text-blue-500" />
+                      <span className="text-xs text-slate-400">Total Logins</span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-bold text-white">
+                      {selectedUserDetails.user.loginCount}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-800 bg-slate-800/30">
+                  <CardContent className="pt-4 p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Timer className="h-4 w-4 text-cyan-500" />
+                      <span className="text-xs text-slate-400">Avg Session</span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-bold text-white">
+                      {formatDuration(selectedUserDetails.user.averageSessionDuration || 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-800 bg-slate-800/30">
+                  <CardContent className="pt-4 p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Activity className="h-4 w-4 text-green-500" />
+                      <span className="text-xs text-slate-400">Total Sessions</span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-bold text-white">
+                      {selectedUserDetails.user.totalSessions}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Favorite Rooms */}
+              <Card className="border-slate-800 bg-slate-800/30">
+                <CardHeader className="p-3 sm:p-4">
+                  <CardTitle className="text-base sm:text-lg text-white">Favorite Rooms</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">Most active chat rooms</CardDescription>
+                </CardHeader>
+                <CardContent className="p-3 sm:p-4 pt-0">
+                  <div className="space-y-2">
+                    {selectedUserDetails.stats.favoriteRooms.map((room, index) => (
+                      <div key={room.roomId} className="flex items-center justify-between p-2 sm:p-3 bg-slate-900/50 rounded-lg">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <Badge variant="outline" className="flex-shrink-0">{index + 1}</Badge>
+                          <span className="text-sm text-white truncate">{room.roomName}</span>
+                          {room.roomType && (
+                            <Badge variant="secondary" className="text-xs hidden sm:inline-flex">{room.roomType}</Badge>
+                          )}
+                        </div>
+                        <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 ml-2">
+                          {room.messageCount} msgs
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Recent Activity */}
+              <Card className="border-slate-800 bg-slate-800/30">
+                <CardHeader className="p-3 sm:p-4">
+                  <CardTitle className="text-base sm:text-lg text-white">Recent Messages</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">Last 10 messages sent</CardDescription>
+                </CardHeader>
+                <CardContent className="p-3 sm:p-4 pt-0">
+                  <ScrollArea className="h-[200px]">
+                    <div className="space-y-2">
+                      {selectedUserDetails.recentActivity.map((msg) => (
+                        <div key={msg.id} className="p-2 sm:p-3 bg-slate-900/50 rounded-lg">
+                          <div className="flex items-center justify-between mb-1">
+                            <Badge variant="outline" className="text-xs">{msg.roomName}</Badge>
+                            <span className="text-xs text-slate-500">
+                              {new Date(msg.createdAt).toLocaleString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-300 break-words">{msg.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

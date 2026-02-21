@@ -183,8 +183,7 @@ export default function RoomsPage() {
 
     // Listen for new room creation
     wsService.onNewRoomCreated((newRoom) => {
-      console.log('🆕 New room created:', newRoom);
-      
+
       // Check if the new room is within 5km of user's location
       const distance = calculateDistance(
         userLocation.lat,
@@ -249,25 +248,57 @@ export default function RoomsPage() {
       const coords = location || DEFAULT_LOCATION;
       setUserLocation(coords);
       
-      // Get city name via reverse geocoding
+      // Get city name via reverse geocoding (with timeout, non-blocking)
       let cityName: string | undefined;
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}`
-        );
-        const data = await response.json();
-        cityName = data.address?.city || data.address?.town || data.address?.village || data.address?.state;
-      } catch (error) {
-        console.error('Failed to get city name:', error);
-      }
+      const getCityName = async () => {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+          
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}`,
+            { 
+              signal: controller.signal,
+              headers: {
+                'User-Agent': 'Redius-App/1.0'
+              }
+            }
+          );
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            throw new Error('Geocoding failed');
+          }
+          
+          const data = await response.json();
+          return data.address?.city || data.address?.town || data.address?.village || data.address?.state;
+        } catch (error) {
+          console.warn('Failed to get city name, continuing without it:', error);
+          return undefined;
+        }
+      };
       
-      // Load all data in parallel
+      // Start geocoding but don't wait for it - load rooms immediately
+      const cityNamePromise = getCityName();
+      
+      // Load all room data in parallel (don't wait for city name)
       await Promise.all([
-        loadSystemRooms(coords.lat, coords.lng, cityName),
+        loadSystemRooms(coords.lat, coords.lng, undefined), // Load with undefined city first
         loadCustomRooms(coords.lat, coords.lng),
         loadActiveCount(coords.lat, coords.lng),
         loadAvailableSlots(coords.lat, coords.lng),
       ]);
+      
+      // After rooms are loaded, if we got a city name, reload system rooms with it
+      cityName = await cityNamePromise;
+      if (cityName) {
+
+        // Silently reload system rooms with city name
+        loadSystemRooms(coords.lat, coords.lng, cityName).catch(err => 
+          console.warn('Failed to reload rooms with city name:', err)
+        );
+      }
+      
     } catch (err) {
       console.error('Error loading rooms:', err);
       setError(err instanceof Error ? err.message : 'Failed to load rooms');
@@ -344,9 +375,8 @@ export default function RoomsPage() {
 
   const loadCustomRooms = async (lat: number, lng: number) => {
     try {
-      console.log('Loading custom rooms for:', { lat, lng });
+
       const rooms = await roomsApi.getUserRooms(lat, lng);
-      console.log('Custom rooms RAW response:', JSON.stringify(rooms, null, 2));
       
       if (!Array.isArray(rooms)) {
         console.error('Invalid rooms response - not an array:', rooms);
@@ -372,11 +402,9 @@ export default function RoomsPage() {
           latitude: room.latitude || 0,
           longitude: room.longitude || 0,
         };
-        console.log('Mapped room:', JSON.stringify(mapped, null, 2));
         return mapped;
       });
-      
-      console.log('✅ Setting custom rooms:', mappedRooms.length, 'rooms');
+
       setCustomRooms(mappedRooms);
     } catch (err) {
       console.error('❌ Error loading custom rooms:', err);
@@ -588,7 +616,7 @@ export default function RoomsPage() {
               </Link>
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text truncate">
-                  Radius
+                  Redius
                 </h1>
                 <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {session?.user?.name ? `Welcome, ${session.user.name.split(' ')[0]}!` : 'Discover nearby rooms'}
@@ -910,7 +938,7 @@ export default function RoomsPage() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const roomUrl = `${window.location.origin}/rooms/chat?id=${room.id}&name=${encodeURIComponent(room.name || room.title || 'Chat Room')}&type=system`;
-                                  const message = `🎯 Join me on Radius!\n\n📍 Room: ${room.name || room.title}\n💬 ${room.description}\n\n🔗 Click to join: ${roomUrl}`;
+                                  const message = `🎯 Join me on Redius!\n\n📍 Room: ${room.name || room.title}\n💬 ${room.description}\n\n🔗 Click to join: ${roomUrl}`;
                                   const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
                                   window.open(whatsappUrl, '_blank');
                                   toast.success('Opening WhatsApp...');
@@ -1042,7 +1070,7 @@ export default function RoomsPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               const roomUrl = `${window.location.origin}/rooms/chat?id=${room.id}&name=${encodeURIComponent(room.title || room.name || 'Chat Room')}&type=custom`;
-                              const message = `🎯 Join me on Radius!\n\n📍 Room: ${room.title || room.name}\n👤 Created by ${room.createdBy}\n💬 Custom room nearby\n\n🔗 Click to join: ${roomUrl}`;
+                              const message = `🎯 Join me on Redius!\n\n📍 Room: ${room.title || room.name}\n👤 Created by ${room.createdBy}\n💬 Custom room nearby\n\n🔗 Click to join: ${roomUrl}`;
                               const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
                               window.open(whatsappUrl, '_blank');
                               toast.success('Opening WhatsApp...');

@@ -65,6 +65,18 @@ export default function Home() {
     if (status === "authenticated") {
       setIsNavigating(true);
       setTimeout(() => {
+        // Check if there's a stored redirect URL (from shared room link)
+        if (typeof window !== 'undefined') {
+          const redirectUrl = sessionStorage.getItem('redius_redirect_after_login');
+          if (redirectUrl) {
+            // Clear the stored URL
+            sessionStorage.removeItem('redius_redirect_after_login');
+            // Redirect to the stored URL
+            window.location.href = redirectUrl;
+            return;
+          }
+        }
+        // Default redirect to rooms page
         router.push("/rooms");
       }, 1200);
     }
@@ -72,7 +84,21 @@ export default function Home() {
 
   const handleGoogleLogin = async () => {
     try {
-      await signIn("google", { callbackUrl: "/rooms" });
+      // Check if there's a stored redirect URL
+      let callbackUrl = "/rooms";
+      if (typeof window !== 'undefined') {
+        const redirectUrl = sessionStorage.getItem('redius_redirect_after_login');
+        if (redirectUrl) {
+          // Convert full URL to relative path for callbackUrl
+          try {
+            const url = new URL(redirectUrl);
+            callbackUrl = url.pathname + url.search;
+          } catch (e) {
+            console.error('Invalid redirect URL:', e);
+          }
+        }
+      }
+      await signIn("google", { callbackUrl });
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Failed to login with Google");
@@ -147,7 +173,7 @@ export default function Home() {
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight px-2">
               Welcome to{" "}
               <span className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
-                Radius
+                Redius
               </span>
             </h1>
             
@@ -481,7 +507,7 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 mb-6 sm:mb-8">
             <div className="space-y-3 sm:space-y-4">
               <h3 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
-                Radius
+                Redius
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 A proximity-based anonymous chat platform for real-time conversations with people nearby.
@@ -493,7 +519,7 @@ export default function Home() {
               <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
                 <li className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-2">
                   <ArrowRight className="w-3 h-3" />
-                  About Radius
+                  About Redius
                 </li>
                 <li className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-2">
                   <ArrowRight className="w-3 h-3" />
@@ -526,7 +552,7 @@ export default function Home() {
                   <Github className="w-5 h-5" />
                 </a>
                 <a 
-                  href="https://instagram.com/devashish2006" 
+                  href="https://www.instagram.com/devashish_6363" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="w-11 h-11 rounded-lg bg-muted hover:bg-primary/20 flex items-center justify-center transition-all hover:scale-110 border border-transparent hover:border-primary/30"
@@ -535,7 +561,7 @@ export default function Home() {
                   <Instagram className="w-5 h-5" />
                 </a>
                 <a 
-                  href="https://x.com/devashish2006" 
+                  href="https://x.com/devashish6363" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="w-11 h-11 rounded-lg bg-muted hover:bg-primary/20 flex items-center justify-center transition-all hover:scale-110 border border-transparent hover:border-primary/30"
@@ -549,7 +575,7 @@ export default function Home() {
 
           <div className="pt-4 sm:pt-6 md:pt-8 border-t text-center space-y-1 sm:space-y-2">
             <p className="text-xs sm:text-sm text-muted-foreground">
-              © 2026 Radius. Crafted with passion and code.
+              © 2026 Redius. Crafted with passion and code.
             </p>
             <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
               <Heart className="w-3 h-3 text-red-500" />

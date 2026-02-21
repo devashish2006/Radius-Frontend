@@ -77,14 +77,31 @@ class RoomsApiService {
     );
     if (!response.ok) {
       let errorMessage = 'Failed to get room details';
+      let errorType = 'UNKNOWN';
+      
       try {
         const error: ApiError = await response.json();
         errorMessage = error.message || errorMessage;
+        
+        // Detect specific error types
+        if (response.status === 404 || 
+            errorMessage.toLowerCase().includes('not found') || 
+            errorMessage.toLowerCase().includes('expired')) {
+          errorType = 'ROOM_NOT_FOUND';
+        }
       } catch (e) {
-        // If response is not JSON, use status text
-        errorMessage = `${errorMessage}: ${response.statusText || response.status}`;
+        // If response is not JSON, check status code
+        if (response.status === 404) {
+          errorType = 'ROOM_NOT_FOUND';
+          errorMessage = 'Room not found or has expired';
+        } else {
+          errorMessage = `${errorMessage}: ${response.statusText || response.status}`;
+        }
       }
-      throw new Error(errorMessage);
+      
+      const error: any = new Error(errorMessage);
+      error.type = errorType;
+      throw error;
     }
     return response.json();
   }

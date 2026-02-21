@@ -63,6 +63,19 @@ export interface UserActivity {
   banned: boolean;
   messageCount: number;
   violationCount: number;
+  // New tracking fields
+  loginCount: number;
+  totalSessions: number;
+  averageSessionDuration: number;
+  firstLoginDate: string;
+  lastActivityAt: string;
+  preferredRoomTypes: string | null;
+  totalRoomsCreated: number;
+  totalRoomsJoined: number;
+  isOnline: boolean;
+  lastSeenAt: string;
+  daysSinceJoined: number;
+  engagementScore: number;
 }
 
 export interface RoomPopularity {
@@ -90,6 +103,19 @@ export interface UserListResponse {
     banReason: string | null;
     messageCount: number;
     violationCount: number;
+    // New tracking fields
+    loginCount: number;
+    totalSessions: number;
+    averageSessionDuration: number;
+    firstLoginDate: string;
+    lastActivityAt: string;
+    preferredRoomTypes: string | null;
+    totalRoomsCreated: number;
+    totalRoomsJoined: number;
+    isOnline: boolean;
+    lastSeenAt: string;
+    daysSinceJoined: number;
+    engagementScore: number;
   }>;
   total: number;
   page: number;
@@ -117,6 +143,60 @@ export interface RecentMessage {
   roomName: string;
   createdAt: string;
   userId: string | null;
+}
+
+export interface UserDetails {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string;
+    createdAt: string;
+    lastLogin: string;
+    banned: boolean;
+    banReason: string | null;
+    bannedAt: string | null;
+    violationCount: number;
+    loginCount: number;
+    totalSessions: number;
+    averageSessionDuration: number;
+    firstLoginDate: string;
+    lastActivityAt: string;
+    preferredRoomTypes: string | null;
+    totalRoomsCreated: number;
+    totalRoomsJoined: number;
+    isOnline: boolean;
+    lastSeenAt: string;
+    daysSinceJoined: number;
+    messagesPerDay: number;
+  };
+  stats: {
+    totalMessages: number;
+    messageHistory: Array<{ date: string; count: number }>;
+    favoriteRooms: Array<{
+      roomId: string;
+      roomName: string;
+      roomType: string | null;
+      messageCount: number;
+    }>;
+    activityByHour: Array<{ hour: number; count: number }>;
+  };
+  recentActivity: Array<{
+    id: string;
+    message: string;
+    roomId: string;
+    roomName: string;
+    createdAt: string;
+  }>;
+}
+
+export interface OnlineUser {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string;
+  lastSeenAt: string;
+  isOnline: boolean;
 }
 
 class AnalyticsApiService {
@@ -217,6 +297,14 @@ class AnalyticsApiService {
 
   async getRecentActivity(token: string, limit: number = 100): Promise<RecentMessage[]> {
     return this.fetchWithAuth(`${this.baseUrl}/analytics/recent-activity?limit=${limit}`, token);
+  }
+
+  async getUserDetails(token: string, userId: string): Promise<UserDetails> {
+    return this.fetchWithAuth(`${this.baseUrl}/analytics/user-details/${userId}`, token);
+  }
+
+  async getOnlineUsers(token: string): Promise<OnlineUser[]> {
+    return this.fetchWithAuth(`${this.baseUrl}/analytics/online-users`, token);
   }
 }
 

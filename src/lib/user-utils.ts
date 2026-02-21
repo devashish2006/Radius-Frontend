@@ -85,8 +85,8 @@ function toRad(degrees: number): number {
  */
 export function storeUserData(userId: string, username: string) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('radius_user_id', userId);
-    localStorage.setItem('radius_username', username);
+    localStorage.setItem('redius_user_id', userId);
+    localStorage.setItem('redius_username', username);
   }
 }
 
@@ -95,8 +95,8 @@ export function storeUserData(userId: string, username: string) {
  */
 export function getUserData(): { userId: string; username: string } | null {
   if (typeof window !== 'undefined') {
-    const userId = localStorage.getItem('radius_user_id');
-    const username = localStorage.getItem('radius_username');
+    const userId = localStorage.getItem('redius_user_id');
+    const username = localStorage.getItem('redius_username');
     
     if (userId && username) {
       return { userId, username };

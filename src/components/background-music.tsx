@@ -24,7 +24,7 @@ export function BackgroundMusic() {
         await audio.play();
         setIsPlaying(true);
         setIsMuted(false);
-        console.log("Audio auto-started");
+
       } catch (error) {
         console.error("Auto-play failed:", error);
         // If autoplay fails, keep the button for user to click
@@ -53,7 +53,7 @@ export function BackgroundMusic() {
 
     // Handle when audio can play
     const handleCanPlay = () => {
-      console.log("Audio can play");
+
       setError(null);
     };
 
@@ -77,13 +77,13 @@ export function BackgroundMusic() {
         await audio.play();
         setIsPlaying(true);
         setIsMuted(false);
-        console.log("Audio started playing");
+
       } else {
         // Toggle mute
         const newMutedState = !isMuted;
         audio.muted = newMutedState;
         setIsMuted(newMutedState);
-        console.log(`Audio ${newMutedState ? 'muted' : 'unmuted'}`);
+
       }
     } catch (error) {
       console.error("Error playing audio:", error);

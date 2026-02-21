@@ -40,6 +40,12 @@ interface MessageBlockedData {
   reason?: string;
 }
 
+interface UserBannedData {
+  message: string;
+  banReason: string;
+  bannedAt: string;
+}
+
 interface JoinRoomData {
   roomId: string;
 }
@@ -61,18 +67,17 @@ class WebSocketService {
   connect(token?: string): Socket {
     // If already connected, return existing socket
     if (this.socket?.connected) {
-      console.log('✅ Socket already connected, reusing connection');
+
       return this.socket;
     }
 
     // If socket exists but not connected, try to reconnect
     if (this.socket && !this.socket.connected) {
-      console.log('🔄 Reconnecting existing socket...');
+
       this.socket.connect();
       return this.socket;
     }
 
-    console.log('🔌 Creating new WebSocket connection...');
     this.socket = io(API_CONFIG.WS_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -86,32 +91,32 @@ class WebSocketService {
     });
 
     this.socket.on('connect', () => {
-      console.log('✅ WebSocket connected:', this.socket?.id);
+
       this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('❌ WebSocket disconnected:', reason);
+
       if (reason === 'io server disconnect') {
         // Server disconnected, try to reconnect manually
-        console.log('🔄 Server disconnected, attempting manual reconnect...');
+
         this.socket?.connect();
       }
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log(`✅ WebSocket reconnected after ${attemptNumber} attempts`);
+
       this.reconnectAttempts = 0;
       
       // Rejoin the room if we were in one
       if (this.currentRoomId) {
-        console.log('🔄 Rejoining room after reconnect:', this.currentRoomId);
+
         this.socket?.emit('join-room', { roomId: this.currentRoomId });
       }
     });
 
     this.socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`🔄 Reconnection attempt ${attemptNumber}/${this.maxReconnectAttempts}`);
+
       this.reconnectAttempts = attemptNumber;
     });
 
@@ -127,6 +132,15 @@ class WebSocketService {
       console.error('❌ WebSocket connection error:', error);
     });
 
+    // Listen for ban event
+    this.socket.on('user-banned', (data: UserBannedData) => {
+
+      // Redirect to ban page
+      if (typeof window !== 'undefined') {
+        window.location.href = `/banned?reason=${encodeURIComponent(data.banReason || 'Account suspended')}&bannedAt=${encodeURIComponent(data.bannedAt || new Date().toISOString())}`;
+      }
+    });
+
     return this.socket;
   }
 
@@ -140,7 +154,7 @@ class WebSocketService {
 
     this.currentRoomId = data.roomId;
     this.socket.emit('join-room', data);
-    console.log('🚪 Joining room:', data);
+
   }
 
   /**
@@ -152,7 +166,7 @@ class WebSocketService {
     }
 
     this.socket.emit('leave-room', { roomId, userId });
-    console.log('👋 Leaving room:', roomId);
+
     this.currentRoomId = null;
   }
 
@@ -165,7 +179,7 @@ class WebSocketService {
     }
 
     this.socket.emit('send-message', data);
-    console.log('📤 Sending message:', data);
+
   }
 
   /**
@@ -305,7 +319,7 @@ class WebSocketService {
       this.socket.disconnect();
       this.socket = null;
       this.currentRoomId = null;
-      console.log('🔌 WebSocket disconnected');
+
     }
   }
 

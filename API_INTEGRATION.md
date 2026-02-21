@@ -1,4 +1,4 @@
-# Radius Frontend - API Integration
+# Redius Frontend - API Integration
 
 ## Backend Connection
 
@@ -8,7 +8,7 @@ The frontend is now fully integrated with the real backend APIs.
 
 1. **Backend Server Must Be Running**
    ```bash
-   cd radius-backend
+   cd redius-backend
    npm run start:dev
    ```
    Backend should be running on `http://localhost:4000`
@@ -62,7 +62,7 @@ The frontend is now fully integrated with the real backend APIs.
 
 1. **Start Backend**
    ```bash
-   cd ../radius-backend
+   cd ../redius-backend
    npm run start:dev
    ```
 
@@ -90,8 +90,8 @@ The frontend is now fully integrated with the real backend APIs.
 ### User Data Storage
 
 User data is stored in browser localStorage:
-- `radius_user_id`: Unique user identifier
-- `radius_username`: Anonymous generated name
+- `redius_user_id`: Unique user identifier
+- `redius_username`: Anonymous generated name
 
 ### Next Steps for WebSocket
 

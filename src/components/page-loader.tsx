@@ -35,7 +35,7 @@ export function PageLoader() {
         
         <div className="space-y-3">
           <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
-            Loading Radius
+            Loading Redius
           </h2>
           <p className="text-muted-foreground">
             Discovering rooms in your area...

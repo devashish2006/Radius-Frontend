@@ -130,7 +130,7 @@ export default function PublicStatsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Radius Stats</h1>
+              <h1 className="text-3xl font-bold text-white mb-2">Redius Stats</h1>
               <p className="text-slate-400">Real-time platform statistics and insights</p>
             </div>
             <Button
@@ -363,7 +363,7 @@ export default function PublicStatsPage() {
         {/* Footer */}
         <div className="mt-12 text-center pb-8">
           <p className="text-slate-500 text-sm mb-4">
-            Stats updated in real-time • Powered by Radius Analytics
+            Stats updated in real-time • Powered by Redius Analytics
           </p>
           <div className="flex items-center justify-center gap-4">
             <Button

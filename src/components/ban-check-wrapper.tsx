@@ -31,11 +31,12 @@ export function BanCheckWrapper({ children }: { children: React.ReactNode }) {
               try {
                 const data = await response.json();
                 const reason = data.banReason || data.message || 'Your account has been suspended for violating our community guidelines.';
-                router.push(`/banned?reason=${encodeURIComponent(reason)}`);
+                const bannedAt = data.bannedAt || new Date().toISOString();
+                router.push(`/banned?reason=${encodeURIComponent(reason)}&bannedAt=${encodeURIComponent(bannedAt)}`);
                 return;
               } catch (e) {
                 // If parsing fails, use default message
-                router.push('/banned?reason=Your%20account%20has%20been%20suspended');
+                router.push('/banned?reason=Your%20account%20has%20been%20suspended&bannedAt=' + encodeURIComponent(new Date().toISOString()));
                 return;
               }
             }
@@ -53,6 +54,11 @@ export function BanCheckWrapper({ children }: { children: React.ReactNode }) {
     };
 
     checkBanStatus();
+    
+    // Check ban status every 30 seconds for real-time enforcement
+    const interval = setInterval(checkBanStatus, 30000);
+    
+    return () => clearInterval(interval);
   }, [status, session, router]);
 
   if (checking && status !== 'unauthenticated') {

@@ -190,7 +190,7 @@ export function AnimatedWorldMap() {
               <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 rounded-full bg-purple-500" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] sm:text-xs md:text-sm font-medium text-white truncate">Radius</p>
+              <p className="text-[10px] sm:text-xs md:text-sm font-medium text-white truncate">Redius</p>
               <p className="text-[8px] sm:text-[10px] md:text-xs text-slate-400 truncate">50-200m range</p>
             </div>
           </div>

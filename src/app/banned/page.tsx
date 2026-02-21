@@ -76,7 +76,7 @@ function BannedPageContent() {
                 Account Suspended
               </CardTitle>
               <CardDescription className="text-slate-400 text-base">
-                Your access to Radius has been restricted
+                Your access to Redius has been restricted
               </CardDescription>
             </div>
           </CardHeader>
@@ -121,7 +121,7 @@ function BannedPageContent() {
                 <div className="flex-1 space-y-3">
                   <h3 className="font-semibold text-white">Community Guidelines</h3>
                   <p className="text-slate-400 text-sm leading-relaxed">
-                    Radius is committed to maintaining a safe and respectful environment for all users. 
+                    Redius is committed to maintaining a safe and respectful environment for all users. 
                     Violations include but are not limited to:
                   </p>
                   <ul className="space-y-2 text-sm text-slate-400">
@@ -161,11 +161,11 @@ function BannedPageContent() {
                     please contact our support team:
                   </p>
                   <a 
-                    href="mailto:support@radius.chat" 
+                    href="mailto:support@redius.chat" 
                     className="text-blue-400 hover:text-blue-300 text-sm font-medium inline-flex items-center gap-2"
                   >
                     <Mail className="h-4 w-4" />
-                    support@radius.chat
+                    support@redius.chat
                   </a>
                 </div>
               </div>
@@ -192,7 +192,7 @@ function BannedPageContent() {
                 Return to Home
               </Button>
               <Button
-                onClick={() => window.open('mailto:support@radius.chat', '_blank')}
+                onClick={() => window.open('mailto:support@redius.chat', '_blank')}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Mail className="h-4 w-4 mr-2" />

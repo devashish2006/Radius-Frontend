@@ -22,7 +22,7 @@ export function CountdownTimer({
 
   // Log once when component mounts or expiresAt changes
   useEffect(() => {
-    console.log('⏰ CountdownTimer mounted with expiresAt:', expiresAt, 'type:', typeof expiresAt);
+
   }, [expiresAt]);
 
   useEffect(() => {
@@ -32,7 +32,6 @@ export function CountdownTimer({
       const difference = expiry - now;
 
       if (difference <= 0) {
-        console.log('⏰ Timer expired! now:', new Date(now), 'expiry:', new Date(expiry));
         setTimeLeft("Expired");
         return;
       }
