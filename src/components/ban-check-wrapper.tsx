@@ -20,7 +20,7 @@ export function BanCheckWrapper({ children }: { children: React.ReactNode }) {
           
           if (token) {
             // Try to verify the token is still valid by calling /auth/me
-            const response = await fetch('http://localhost:4000/auth/me', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
               },
